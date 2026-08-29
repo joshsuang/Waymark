@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Waymark TEST</title>
+<title>Waymark</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23263D2F'/%3E%3Cpath d='M2 24 L11 10 L15 16 L20 7 L30 24 Z' fill='%23EEF0E8'/%3E%3Ccircle cx='23' cy='9' r='2.4' fill='%23A9791A'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -818,9 +818,33 @@ body.dark .badge-done{background:#213329;}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
-const STORAGE_KEY = 'hikes-v1';
-const SETTINGS_KEY = 'hikes-settings-v1';
+const SUPABASE_URL = 'https://xrkeurkkurrgfyrhebtj.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhya2V1cmtrdXJyZ2Z5cmhlYnRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMzM0MDUsImV4cCI6MjEwMjgwOTQwNX0.Jg-12Eumd0VObTKTpaoM635f_qOZt9iRM6Z3qn4pSVQ';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+function toRow(h){
+  return {
+    id: h.id, name: h.name, region: h.region, status: h.status,
+    distance: h.distance, elevation: h.elevation, difficulty: h.difficulty,
+    date_start: h.dateStart, date_end: h.dateEnd, lat: h.lat, lng: h.lng,
+    companions: h.companions, photos: h.photos || [], gpx_elevations: h.gpxElevations,
+    strava: h.strava, gear: h.gear, notes: h.notes, conditions: h.conditions || [],
+    weather: h.weather, rating: h.rating
+  };
+}
+function fromRow(r){
+  return {
+    id: r.id, name: r.name, region: r.region, status: r.status,
+    distance: r.distance, elevation: r.elevation, difficulty: r.difficulty,
+    dateStart: r.date_start, dateEnd: r.date_end, lat: r.lat, lng: r.lng,
+    companions: r.companions, photos: r.photos || [], gpxElevations: r.gpx_elevations,
+    strava: r.strava, gear: r.gear, notes: r.notes, conditions: r.conditions || [],
+    weather: r.weather, rating: r.rating
+  };
+}
+
 let hikes = [];
 let settings = {
   views: { grid: true, list: true, map: false },
@@ -854,16 +878,17 @@ const SEED_HIKES = [
 
 async function loadData(){
   try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    hikes = res && res.value ? JSON.parse(res.value) : [];
-  }catch(e){ hikes = []; }
+    const { data, error } = await sb.from('hikes').select('*');
+    if(error) throw error;
+    hikes = (data||[]).map(fromRow);
+  }catch(e){ console.error('load failed', e); hikes = []; }
   if(hikes.length === 0){
     hikes = SEED_HIKES;
     await saveHikes();
   }
   try{
-    const res2 = await window.storage.get(SETTINGS_KEY, false);
-    if(res2 && res2.value) settings = { ...settings, ...JSON.parse(res2.value) };
+    const { data } = await sb.from('hikes_settings').select('data').eq('id', 1).maybeSingle();
+    if(data && data.data) settings = { ...settings, ...data.data };
   }catch(e){ /* use defaults */ }
   applyTheme();
   const enabledViews = Object.keys(settings.views).filter(v=>settings.views[v]);
@@ -915,11 +940,20 @@ function renderStats(){
 }
 
 async function saveHikes(){
-  try{ await window.storage.set(STORAGE_KEY, JSON.stringify(hikes), false); }
-  catch(e){ console.error('save failed', e); }
+  try{
+    if(hikes.length){
+      const rows = hikes.map(toRow);
+      const { error } = await sb.from('hikes').upsert(rows);
+      if(error) throw error;
+    }
+    const { data: existing } = await sb.from('hikes').select('id');
+    const currentIds = new Set(hikes.map(h=>h.id));
+    const toDelete = (existing||[]).filter(r=>!currentIds.has(r.id)).map(r=>r.id);
+    if(toDelete.length) await sb.from('hikes').delete().in('id', toDelete);
+  }catch(e){ console.error('save failed', e); }
 }
 async function saveSettings(){
-  try{ await window.storage.set(SETTINGS_KEY, JSON.stringify(settings), false); }
+  try{ await sb.from('hikes_settings').upsert({ id: 1, data: settings }); }
   catch(e){ console.error('settings save failed', e); }
 }
 
