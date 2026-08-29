@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nand's Hiking Log</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23263D2F'/%3E%3Cpath d='M2 24 L11 10 L15 16 L20 7 L30 24 Z' fill='%23EEF0E8'/%3E%3Ccircle cx='23' cy='9' r='2.4' fill='%23A9791A'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root{
+  --bg: #EEF0E8;
+  --surface: #FFFFFF;
+  --ink: #202B22;
+  --ink-soft: #56604F;
+  --pine: #3C5A45;
+  --pine-deep: #263D2F;
+  --rust: #9C4A2E;
+  --gold: #A9791A;
+  --slate: #5B6B79;
+  --line: #D8DCCC;
+  --font-display: 'Fraunces', serif;
+  --font-body: 'Work Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+body.dark{
+  --bg: #1B2620;
+  --surface: #24322A;
+  --ink: #E7ECE4;
+  --ink-soft: #9BAA98;
+  --pine: #7FAE8E;
+  --pine-deep: #C9E0CC;
+  --rust: #D08662;
+  --gold: #D9B34E;
+  --slate: #93A6B8;
+  --line: #37483C;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--font-body);
+  min-height:100vh;
+}
+
+/* ---------- pill filters ---------- */
+.pills{display:flex; gap:6px; flex-wrap:wrap;}
+.pill{
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--ink-soft);
+  font-family:var(--font-body);
+  font-size:12.5px;
+  font-weight:500;
+  padding:7px 13px;
+  border-radius:20px;
+  cursor:pointer;
+}
+.pill:hover{border-color:var(--pine);}
+.pill.active{background:var(--pine); border-color:var(--pine); color:#fff;}
+
+.sort-pill{
+  border:none;
+  background:transparent;
+  color:var(--ink-soft);
+  font-family:var(--font-body);
+  font-size:12px;
+  padding:6px 8px;
+  cursor:pointer;
+  border-bottom:2px solid transparent;
+}
+.sort-pill.active{color:var(--pine-deep); border-bottom-color:var(--pine); font-weight:600;}
+
+.card-icons{display:inline-flex; gap:6px; align-items:center;}
+.icon-badge{
+  width:20px; height:20px;
+  border-radius:5px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.icon-camera{background:var(--bg); color:var(--ink-soft);}
+.icon-strava{background:#FC4C0220; color:#FC4C02;}
+.icon-badge svg{width:12px; height:12px;}
+
+/* ---------- trail divider (signature motif) ---------- */
+.trail-divider{
+  height:14px;
+  margin:24px 0;
+  background-image: radial-gradient(circle, var(--pine) 1.6px, transparent 1.8px);
+  background-size: 16px 14px;
+  background-position: center;
+  background-repeat: repeat-x;
+  opacity:0.55;
+}
+
+/* ---------- embedded pins map ---------- */
+.map-wrap{
+  height:320px;
+  border-radius:10px;
+  overflow:hidden;
+  border:1px solid var(--line);
+  margin:22px 0;
+}
+.map-wrap{ background:var(--bg); }
+.leaflet-tile-pane{ filter: sepia(15%) saturate(65%) brightness(0.98) hue-rotate(-6deg); }
+body.dark .leaflet-tile-pane{ filter: invert(92%) hue-rotate(180deg) brightness(0.87) contrast(0.9) saturate(0.7); }
+.leaflet-control-zoom a{
+  background:var(--surface) !important;
+  color:var(--pine-deep) !important;
+  border-color:var(--line) !important;
+}
+.leaflet-control-attribution{
+  background:var(--surface) !important;
+  color:var(--ink-soft) !important;
+}
+.leaflet-control-attribution a{ color:var(--pine) !important; }
+.leaflet-popup-content-wrapper{ background:var(--surface); color:var(--ink); border-radius:8px; }
+.leaflet-popup-tip{ background:var(--surface); }
+.map-pin{
+  width:16px; height:16px;
+  border-radius:50%;
+  border:2px solid #fff;
+  box-shadow:0 1px 3px rgba(0,0,0,0.4);
+}
+.pin-wishlist{background:var(--slate);}
+.pin-planned{background:var(--gold);}
+.pin-done{background:var(--pine);}
+.map-popup{font-family:var(--font-body); min-width:170px;}
+.map-popup .name{font-family:var(--font-display); font-weight:600; font-size:14.5px; color:var(--pine-deep); margin:0 0 4px;}
+.map-popup .stats{font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); margin-bottom:8px;}
+.map-popup button{
+  font-family:var(--font-body); font-size:12px; font-weight:600;
+  background:var(--pine); color:#fff; border:none; border-radius:6px;
+  padding:6px 10px; cursor:pointer; width:100%;
+}
+
+/* ---------- view modal ---------- */
+.view-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:4px;}
+.view-name{font-family:var(--font-display); font-weight:600; font-size:22px; color:var(--pine-deep); margin:0;}
+.icon-btn{
+  border:1px solid var(--line);
+  background:var(--surface);
+  border-radius:7px;
+  width:34px; height:34px;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  color:var(--ink-soft);
+  flex-shrink:0;
+}
+.icon-btn:hover{border-color:var(--pine); color:var(--pine);}
+.view-photo-strip{display:flex; gap:8px; overflow-x:auto; margin:14px 0;}
+.view-photo-strip img{height:120px; border-radius:8px; flex-shrink:0;}
+.view-group{margin-bottom:18px;}
+.view-group-label{
+  font-family:var(--font-mono);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--pine);
+  margin:0 0 4px;
+}
+.view-group .view-row:first-child{border-top:none;}
+.view-row{
+  display:flex;
+  justify-content:space-between;
+  padding:8px 0;
+  border-bottom:1px solid var(--line);
+  font-size:13.5px;
+  gap:10px;
+}
+.view-group .view-row:last-child{border-bottom:none; padding-bottom:0;}
+.view-row .k{color:var(--ink-soft); font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:0.04em; padding-top:2px; flex-shrink:0;}
+.view-row .v{text-align:right; max-width:65%;}
+.view-notes{margin-top:12px; font-size:13.5px; line-height:1.5; color:var(--ink);}
+.strava-link{
+  display:inline-flex; align-items:center; gap:6px;
+  color:#FC4C02; font-weight:600; text-decoration:none; font-size:13.5px;
+}
+.strava-link:hover{text-decoration:underline;}
+.photo-preview-strip{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.photo-preview-strip .ph{position:relative;}
+.photo-preview-strip img{width:64px; height:64px; object-fit:cover; border-radius:6px;}
+.photo-preview-strip .rm{
+  position:absolute; top:-6px; right:-6px;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--rust); color:#fff; border:none;
+  font-size:11px; line-height:1; cursor:pointer;
+}
+.chip-group{display:flex; gap:6px; flex-wrap:wrap;}
+.chip{
+  border:1px solid var(--line);
+  background:var(--bg);
+  color:var(--ink-soft);
+  font-size:12px;
+  padding:5px 11px;
+  border-radius:16px;
+  cursor:pointer;
+}
+.chip.active{background:var(--gold); border-color:var(--gold); color:#fff;}
+.suggest-hint{font-size:11.5px; color:var(--ink-soft); margin-top:4px; cursor:pointer;}
+.suggest-hint:hover{color:var(--pine); text-decoration:underline;}
+.sparkline{display:block; margin-top:6px;}
+.map-link-row{
+  display:flex; justify-content:space-between; align-items:center;
+  padding:12px 14px; background:var(--surface); border:1px solid var(--line);
+  border-radius:8px; margin-bottom:8px; cursor:pointer;
+}
+.map-link-row:hover{border-color:var(--pine);}
+
+/* ---------- stats bar ---------- */
+.stats-bar{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(130px,1fr));
+  gap:1px;
+  background:var(--line);
+  border:1px solid var(--line);
+  border-radius:10px;
+  overflow:hidden;
+  margin-bottom:22px;
+}
+.stat-block{background:var(--surface); padding:14px 16px;}
+.stat-block .num{font-family:var(--font-mono); font-size:20px; font-weight:700; color:var(--pine-deep);}
+.stat-block .lbl{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
+
+/* ---------- select mode ---------- */
+.card.selecting, .list-row.selecting{outline:2px solid var(--pine); outline-offset:-2px;}
+.select-check{
+  position:absolute; top:10px; left:10px; width:20px; height:20px;
+  border-radius:5px; border:2px solid var(--line); background:var(--surface); z-index:2;
+}
+.select-check.checked{background:var(--pine); border-color:var(--pine);}
+.bulk-bar{
+  position:fixed; bottom:0; left:0; right:0; z-index:60;
+  background:var(--pine-deep); color:#fff;
+  display:none;
+  padding:12px 20px;
+  align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+}
+.bulk-bar.open{display:flex;}
+.bulk-bar button{
+  font-family:var(--font-body); font-size:13px; padding:8px 14px;
+  border-radius:7px; border:1px solid rgba(255,255,255,0.3); background:transparent; color:#fff; cursor:pointer;
+}
+.bulk-bar button:hover{background:rgba(255,255,255,0.12);}
+
+/* ---------- toast ---------- */
+.toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--pine-deep); color:#fff;
+  padding:12px 18px; border-radius:8px;
+  display:flex; align-items:center; gap:14px;
+  font-size:13.5px;
+  opacity:0; pointer-events:none;
+  transition:opacity 200ms ease, transform 200ms ease;
+  z-index:70;
+}
+.toast.shown{opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto;}
+.toast button{background:none; border:none; color:var(--gold); font-weight:600; cursor:pointer; font-size:13.5px;}
+
+/* ---------- reveal ---------- */
+.reveal{opacity:0; transform:translateY(14px); transition:opacity 420ms ease, transform 420ms ease;}
+.reveal.shown{opacity:1; transform:translateY(0);}
+@media (prefers-reduced-motion: reduce){
+  .reveal{opacity:1; transform:none; transition:none;}
+}
+
+/* ---------- topo contour backdrop ---------- */
+.topo{
+  position:relative;
+  overflow:hidden;
+  padding:32px 28px 24px;
+  border-bottom:1px solid var(--line);
+}
+.topo svg{
+  position:absolute;
+  top:-40%; left:-10%;
+  width:120%; height:220%;
+  opacity:0.35;
+  pointer-events:none;
+}
+.topo-content{position:relative; z-index:1;}
+
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:11px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--pine);
+  margin:0 0 6px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+.blaze{
+  width:12px; height:16px;
+  background:var(--rust);
+  border-radius:2px;
+  display:inline-block;
+  transform:rotate(2deg);
+}
+h1{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:34px;
+  margin:0 0 4px;
+  color:var(--pine-deep);
+}
+.subtitle{
+  color:var(--ink-soft);
+  font-size:14px;
+  margin:0;
+}
+
+/* ---------- toolbar ---------- */
+.toolbar{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  padding:16px 28px;
+  border-bottom:1px solid var(--line);
+  background:var(--surface);
+}
+.toolbar-group{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.search-input{
+  font-family:var(--font-body);
+  font-size:13px;
+  border-radius:7px;
+  border:1px solid var(--line);
+  background:var(--bg);
+  color:var(--ink);
+  padding:8px 12px;
+  width:180px;
+}
+
+.tabs{
+  display:flex;
+  background:var(--bg);
+  border-radius:8px;
+  padding:3px;
+  gap:2px;
+}
+.tab-btn{
+  border:none;
+  background:transparent;
+  padding:7px 14px;
+  font-family:var(--font-body);
+  font-size:13px;
+  font-weight:500;
+  color:var(--ink-soft);
+  border-radius:6px;
+  cursor:pointer;
+}
+.tab-btn.active{background:var(--surface); color:var(--pine-deep); box-shadow:0 1px 2px rgba(0,0,0,0.08);}
+
+select, .btn{
+  font-family:var(--font-body);
+  font-size:13px;
+  border-radius:7px;
+  border:1px solid var(--line);
+  background:var(--surface);
+  color:var(--ink);
+  padding:8px 12px;
+  cursor:pointer;
+}
+select:focus, .btn:focus, .tab-btn:focus, button:focus, input:focus, textarea:focus{
+  outline:2px solid var(--pine);
+  outline-offset:1px;
+}
+
+.btn-primary{
+  background:var(--pine);
+  color:#fff;
+  border:1px solid var(--pine);
+  font-weight:600;
+}
+.btn-primary:hover{background:var(--pine-deep);}
+.btn-ghost{background:transparent;}
+
+/* ---------- content ---------- */
+.content{padding:24px 28px 80px; max-width:1100px; margin:0 auto;}
+.empty{
+  text-align:center;
+  padding:60px 20px;
+  color:var(--ink-soft);
+}
+.empty h3{font-family:var(--font-display); color:var(--pine-deep); font-size:20px; margin-bottom:6px;}
+
+/* ---------- grid view ---------- */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(240px,1fr));
+  gap:16px;
+}
+.grid.compact{grid-template-columns:repeat(auto-fill, minmax(180px,1fr)); gap:10px;}
+.card{
+  position:relative;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:16px;
+  cursor:pointer;
+  transition:transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+.grid.compact .card{padding:11px;}
+.card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 16px rgba(38,61,47,0.12);
+  border-color:var(--pine);
+}
+.card-top{display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:10px;}
+.card-name{
+  font-family:var(--font-display);
+  font-weight:600;
+  font-size:18px;
+  color:var(--pine-deep);
+  margin:0;
+  line-height:1.25;
+}
+.grid.compact .card-name{font-size:15px;}
+.card-region{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+.badge{
+  display:inline-block;
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  letter-spacing:0.04em;
+  text-transform:uppercase;
+  padding:3px 8px;
+  border-radius:5px;
+  white-space:nowrap;
+}
+.badge-wishlist{background:#E6EAF0; color:var(--slate);}
+.badge-planned{background:#F3E9C9; color:var(--gold);}
+.badge-done{background:#E4EBE4; color:var(--pine);}
+body.dark .badge-wishlist{background:#2A3742;}
+body.dark .badge-planned{background:#3A331C;}
+body.dark .badge-done{background:#213329;}
+
+.diff{font-size:11px; font-weight:600; letter-spacing:0.03em;}
+.diff-easy{color:var(--pine);}
+.diff-moderate{color:var(--gold);}
+.diff-hard{color:var(--rust);}
+.diff-expert{color:#C0553A;}
+
+.card-stats{
+  display:flex;
+  gap:14px;
+  font-family:var(--font-mono);
+  font-size:13px;
+  color:var(--ink);
+  margin:10px 0 8px;
+  border-top:1px dashed var(--line);
+  border-bottom:1px dashed var(--line);
+  padding:8px 0;
+}
+.stat-label{font-size:9px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.06em; display:block; margin-bottom:1px;}
+.card-foot{display:flex; justify-content:space-between; align-items:center;}
+.stars{color:var(--gold); font-size:13px; letter-spacing:1px;}
+.away-badge{font-size:10.5px; color:var(--slate); font-family:var(--font-mono);}
+
+/* ---------- list view ---------- */
+.list-row{
+  position:relative;
+  display:grid;
+  grid-template-columns: 1.6fr 0.8fr 0.6fr 0.6fr 0.7fr 0.9fr;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:8px;
+  margin-bottom:8px;
+  cursor:pointer;
+  font-size:13px;
+}
+.list-row:hover{border-color:var(--pine);}
+.list-header{
+  font-family:var(--font-mono);
+  font-size:10.5px;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  color:var(--ink-soft);
+  padding:0 14px 8px;
+}
+.list-name{font-family:var(--font-display); font-weight:600; color:var(--pine-deep); font-size:15px;}
+.mono{font-family:var(--font-mono);}
+
+/* ---------- timeline view ---------- */
+.timeline-section{margin-bottom:28px;}
+.timeline-label{
+  font-family:var(--font-mono);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.08em;
+  color:var(--pine);
+  margin-bottom:10px;
+  padding-bottom:6px;
+  border-bottom:2px solid var(--pine);
+  display:inline-block;
+}
+.timeline-item{
+  display:flex;
+  gap:14px;
+  padding:12px 0;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+}
+.timeline-date{
+  font-family:var(--font-mono);
+  font-size:12px;
+  color:var(--ink-soft);
+  width:90px;
+  flex-shrink:0;
+  padding-top:2px;
+}
+.timeline-body{flex:1;}
+.timeline-name{font-family:var(--font-display); font-weight:600; color:var(--pine-deep); font-size:15px;}
+.timeline-meta{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+/* ---------- modal ---------- */
+.overlay{
+  position:fixed; inset:0;
+  background:rgba(32,43,34,0.45);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  z-index:1000;
+}
+.overlay.open{display:flex;}
+.modal{
+  background:var(--surface);
+  border-radius:12px;
+  width:100%;
+  max-width:520px;
+  max-height:88vh;
+  overflow-y:auto;
+  padding:26px;
+}
+.modal h2{
+  font-family:var(--font-display);
+  font-size:22px;
+  color:var(--pine-deep);
+  margin:0 0 4px;
+}
+.modal-hint{font-size:12.5px; color:var(--ink-soft); margin:0 0 18px;}
+.field{margin-bottom:14px;}
+.field label{
+  display:block;
+  font-size:11.5px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  color:var(--ink-soft);
+  margin-bottom:5px;
+}
+.field input, .field select, .field textarea{
+  width:100%;
+  font-family:var(--font-body);
+  font-size:14px;
+  padding:9px 10px;
+  border:1px solid var(--line);
+  border-radius:7px;
+  background:var(--bg);
+  color:var(--ink);
+}
+.field textarea{resize:vertical; min-height:60px; font-family:var(--font-body);}
+.row-2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.star-picker{display:flex; gap:4px; font-size:22px; cursor:pointer; color:var(--line);}
+.star-picker span.filled{color:var(--gold);}
+.modal-actions{display:flex; justify-content:space-between; margin-top:20px; gap:10px;}
+
+@media(max-width:640px){
+  .topo{padding:24px 18px 18px;}
+  h1{font-size:26px;}
+  .toolbar{padding:12px 16px; flex-direction:column; align-items:stretch;}
+  .toolbar-group{justify-content:space-between;}
+  .search-input{width:100%;}
+  .tabs{width:100%;}
+  .tab-btn{flex:1;}
+  .content{padding:16px 16px 90px;}
+  .grid{grid-template-columns:1fr;}
+  .list-row{grid-template-columns:1.4fr 0.8fr 0.8fr; padding:14px;}
+  .list-row span:nth-child(4), .list-row span:nth-child(5), .list-row span:nth-child(6){display:none;}
+  .list-header span:nth-child(4), .list-header span:nth-child(5), .list-header span:nth-child(6){display:none;}
+  .modal{max-width:100%; max-height:100vh; height:100vh; border-radius:0; padding:20px;}
+  .overlay{padding:0;}
+  .row-2{grid-template-columns:1fr;}
+  .btn, .pill, .tab-btn{padding:9px 14px;}
+  .timeline-date{width:70px; font-size:11px;}
+  .bulk-bar{flex-direction:column; align-items:stretch;}
+}
+</style>
+</head>
+<body>
+
+<div class="topo">
+  <svg viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+    <g fill="none" stroke="#3C5A45" stroke-width="1.4">
+      <path d="M-20,60 C 100,20 200,90 300,50 S 500,10 640,70"/>
+      <path d="M-20,110 C 110,70 210,140 310,100 S 510,60 640,120"/>
+      <path d="M-20,160 C 120,120 220,190 320,150 S 520,110 640,170"/>
+      <path d="M-20,210 C 130,170 230,240 330,200 S 530,160 640,220"/>
+      <path d="M-20,260 C 140,220 240,290 340,250 S 540,210 640,270"/>
+      <path d="M-20,310 C 150,270 250,340 350,300 S 550,260 640,320"/>
+    </g>
+  </svg>
+  <div class="topo-content">
+    <p class="eyebrow"><span class="blaze"></span>Trail log</p>
+    <h1 id="pageTitle">Your hikes</h1>
+    <p class="subtitle" id="pageSubtitle">Loading…</p>
+  </div>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-group">
+    <div class="tabs" id="viewTabs"></div>
+    <input class="search-input" id="searchInput" placeholder="Search name or region…">
+    <div class="pills" id="statusPills"></div>
+    <div class="pills" id="sortPills"></div>
+  </div>
+  <div class="toolbar-group">
+    <button class="btn" id="selectBtn">Select</button>
+    <button class="btn" id="settingsBtn">Settings</button>
+    <button class="btn btn-primary" id="addBtn">+ Add hike</button>
+  </div>
+</div>
+
+<div class="content" id="content"></div>
+
+<div class="bulk-bar" id="bulkBar">
+  <span id="bulkCount">0 selected</span>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <button data-status="Wishlist">Mark Wishlist</button>
+    <button data-status="Planned">Mark Planned</button>
+    <button data-status="Done">Mark Done</button>
+    <button id="bulkDelete">Delete</button>
+    <button id="bulkCancel">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span id="toastMsg"></span>
+  <button id="toastUndo">Undo</button>
+</div>
+
+<!-- Add/Edit modal -->
+<div class="overlay" id="editOverlay">
+  <div class="modal">
+    <h2 id="editTitle">Add a hike</h2>
+    <p class="modal-hint">Only the name is required. For real trail stats, ask me in chat to look up the route.</p>
+    <div class="field">
+      <label for="f-name">Name</label>
+      <input type="text" id="f-name" placeholder="e.g. Tour du Mont Blanc">
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label for="f-region">Region</label>
+        <input type="text" id="f-region" placeholder="e.g. French Alps">
+      </div>
+      <div class="field">
+        <label for="f-status">Status</label>
+        <select id="f-status">
+          <option>Wishlist</option>
+          <option>Planned</option>
+          <option>Done</option>
+        </select>
+      </div>
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label for="f-distance">Distance (km)</label>
+        <input type="number" step="0.1" id="f-distance" placeholder="e.g. 12.5">
+      </div>
+      <div class="field">
+        <label for="f-elevation">Elevation gain (m)</label>
+        <input type="number" id="f-elevation" placeholder="e.g. 850">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-difficulty">Difficulty</label>
+      <select id="f-difficulty">
+        <option>Easy</option>
+        <option>Moderate</option>
+        <option>Hard</option>
+        <option>Expert</option>
+      </select>
+      <div class="suggest-hint" id="suggestHint" style="display:none;"></div>
+    </div>
+    <div class="row-2" id="dateFields">
+      <div class="field">
+        <label for="f-date-start">Date (start)</label>
+        <input type="date" id="f-date-start">
+      </div>
+      <div class="field">
+        <label for="f-date-end">Date (end, optional)</label>
+        <input type="date" id="f-date-end">
+      </div>
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label for="f-lat">Latitude</label>
+        <input type="number" step="0.0001" id="f-lat" placeholder="e.g. 45.8326">
+      </div>
+      <div class="field">
+        <label for="f-lng">Longitude</label>
+        <input type="number" step="0.0001" id="f-lng" placeholder="e.g. 6.8652">
+      </div>
+    </div>
+    <div class="field">
+      <label>Trail conditions</label>
+      <div class="chip-group" id="conditionsChips"></div>
+    </div>
+    <div class="field">
+      <label>Weather</label>
+      <div class="chip-group" id="weatherChips"></div>
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label for="f-companions">Companions</label>
+        <input type="text" id="f-companions" placeholder="e.g. Sam, Lea">
+      </div>
+      <div class="field">
+        <label for="f-strava">Strava link</label>
+        <input type="url" id="f-strava" placeholder="https://strava.com/...">
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-photo">Photos</label>
+      <input type="file" id="f-photo" accept="image/*" multiple>
+      <div class="photo-preview-strip" id="photoPreviewStrip"></div>
+    </div>
+    <div class="field">
+      <label for="f-gpx">GPX file (elevation profile)</label>
+      <input type="file" id="f-gpx" accept=".gpx">
+      <svg id="gpxPreview" class="sparkline" width="100%" height="40" style="display:none;"></svg>
+    </div>
+    <div class="field" id="ratingField" style="display:none;">
+      <label>Rating</label>
+      <div class="star-picker" id="starPicker">
+        <span data-v="1">★</span><span data-v="2">★</span><span data-v="3">★</span><span data-v="4">★</span><span data-v="5">★</span>
+      </div>
+    </div>
+    <div class="field">
+      <label for="f-gear">Gear notes</label>
+      <input type="text" id="f-gear" placeholder="e.g. new boots, trekking poles">
+    </div>
+    <div class="field">
+      <label for="f-notes">Trail notes</label>
+      <textarea id="f-notes" placeholder="Conditions, memories..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="deleteBtn" style="color:var(--rust); display:none;">Delete</button>
+      <button class="btn" id="duplicateBtn" style="display:none;">Duplicate</button>
+      <div style="display:flex; gap:10px; margin-left:auto;">
+        <button class="btn" id="cancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="saveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- View (detail) modal -->
+<div class="overlay" id="viewOverlay">
+  <div class="modal" id="viewModalBody"></div>
+</div>
+
+<!-- Settings modal -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal" style="max-width:380px;">
+    <h2>Settings</h2>
+    <p class="modal-hint">Choose which main view(s) appear as tabs. Timeline always shows below.</p>
+    <div class="field">
+      <label><input type="checkbox" id="viewGrid" style="width:auto; margin-right:8px;">Grid view</label>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="viewList" style="width:auto; margin-right:8px;">List view</label>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="viewMap" style="width:auto; margin-right:8px;">Map links view</label>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="compactToggle" style="width:auto; margin-right:8px;">Compact grid</label>
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="darkToggle" style="width:auto; margin-right:8px;">Dark mode</label>
+    </div>
+    <div class="field">
+      <label for="unitSelect">Distance unit</label>
+      <select id="unitSelect"><option value="km">Kilometers</option><option value="mi">Miles</option></select>
+    </div>
+    <div class="field">
+      <label for="defaultStatusSelect">Default status for new hikes</label>
+      <select id="defaultStatusSelect"><option>Wishlist</option><option>Planned</option><option>Done</option></select>
+    </div>
+    <div class="row-2">
+      <div class="field">
+        <label for="homeLat">Home latitude</label>
+        <input type="number" step="0.0001" id="homeLat" placeholder="optional">
+      </div>
+      <div class="field">
+        <label for="homeLng">Home longitude</label>
+        <input type="number" step="0.0001" id="homeLng" placeholder="optional">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="exportBtn">Export JSON</button>
+      <div style="margin-left:auto;">
+        <button class="btn btn-primary" id="settingsDone">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const STORAGE_KEY = 'hikes-v1';
+const SETTINGS_KEY = 'hikes-settings-v1';
+let hikes = [];
+let settings = {
+  views: { grid: true, list: true, map: false },
+  compact: false, dark: false, unit: 'km', defaultStatus: 'Wishlist',
+  homeLat: null, homeLng: null,
+  statusFilter: 'all', sortBy: 'difficulty'
+};
+let currentView = 'grid';
+let editingId = null;
+let currentRating = 0;
+let currentPhotos = [];
+let currentGpx = null;
+let currentConditions = [];
+let currentWeather = null;
+let searchTerm = '';
+let selectMode = false;
+let selectedIds = new Set();
+let pendingUndo = null;
+
+const diffOrder = { Easy: 0, Moderate: 1, Hard: 2, Expert: 3 };
+const CONDITIONS = ['Muddy','Rocky','Snow','Exposed','Shaded'];
+const WEATHERS = [['Sun','☀'],['Rain','🌧'],['Snow','❄'],['Wind','💨'],['Cloud','☁']];
+
+const SEED_HIKES = [
+  { id:'seed_1', name:'Tour du Mont Blanc', region:'French/Italian/Swiss Alps', status:'Wishlist', distance:170, elevation:10000, difficulty:'Expert', dateStart:null, dateEnd:null, photos:[], strava:null, notes:'Multi-day, needs hut bookings.', gear:'', companions:'', weather:null, conditions:[], lat:45.8326, lng:6.8652, gpxElevations:null, rating:null },
+  { id:'seed_2', name:'Cinque Terre Coastal Path', region:'Liguria, Italy', status:'Planned', distance:12, elevation:750, difficulty:'Moderate', dateStart:'2026-10-04', dateEnd:null, photos:[], strava:null, notes:'Book early — trail sections close by weather.', gear:'', companions:'', weather:null, conditions:['Exposed'], lat:44.1069, lng:9.7137, gpxElevations:null, rating:null },
+  { id:'seed_3', name:'Kalalau Trail', region:'Kauai, Hawaii', status:'Wishlist', distance:35, elevation:1500, difficulty:'Hard', dateStart:null, dateEnd:null, photos:[], strava:null, notes:'Permit required.', gear:'', companions:'', weather:null, conditions:[], lat:22.1783, lng:-159.6386, gpxElevations:null, rating:null },
+  { id:'seed_4', name:'Vosges Ridge Walk', region:'Alsace, France', status:'Done', distance:14, elevation:600, difficulty:'Easy', dateStart:'2026-06-14', dateEnd:null, photos:['https://images.unsplash.com/photo-1441974231531-c6227db76b6e'], strava:'https://www.strava.com/activities/example', notes:'Great for a half-day, good views from the ridge.', gear:'', companions:'Sam', weather:'Sun', conditions:['Shaded'], lat:48.3, lng:7.1, gpxElevations:null, rating:4 },
+  { id:'seed_5', name:'Hoge Kempen Loop', region:'Limburg, Belgium', status:'Done', distance:9, elevation:120, difficulty:'Easy', dateStart:'2026-03-02', dateEnd:null, photos:[], strava:'https://www.strava.com/activities/example2', notes:'Flat, easy weekday loop close to home.', gear:'', companions:'', weather:'Cloud', conditions:['Muddy'], lat:51.0, lng:5.6, gpxElevations:null, rating:3 },
+];
+
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    hikes = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){ hikes = []; }
+  if(hikes.length === 0){
+    hikes = SEED_HIKES;
+    await saveHikes();
+  }
+  try{
+    const res2 = await window.storage.get(SETTINGS_KEY, false);
+    if(res2 && res2.value) settings = { ...settings, ...JSON.parse(res2.value) };
+  }catch(e){ /* use defaults */ }
+  applyTheme();
+  const enabledViews = Object.keys(settings.views).filter(v=>settings.views[v]);
+  if(!enabledViews.includes(currentView)) currentView = enabledViews[0] || 'grid';
+  renderTabs();
+  renderPills();
+  renderStats();
+  render();
+}
+
+function applyTheme(){ document.body.classList.toggle('dark', !!settings.dark); }
+
+function toMi(km){ return km * 0.621371; }
+function toFt(m){ return m * 3.28084; }
+function fmtDistance(km){
+  if(km == null) return '—';
+  return settings.unit === 'mi' ? (toMi(km).toFixed(1) + ' mi') : (km + ' km');
+}
+function fmtElevation(m){
+  if(m == null) return '—';
+  return settings.unit === 'mi' ? (Math.round(toFt(m)) + ' ft') : (m + ' m');
+}
+
+function haversine(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function renderStats(){
+  const done = hikes.filter(h=>h.status==='Done');
+  const totalKm = done.reduce((s,h)=>s+(h.distance||0),0);
+  const totalElev = done.reduce((s,h)=>s+(h.elevation||0),0);
+  const thisYear = new Date().getFullYear();
+  const doneThisYear = done.filter(h=>h.dateStart && new Date(h.dateStart).getFullYear()===thisYear);
+  const kmThisYear = doneThisYear.reduce((s,h)=>s+(h.distance||0),0);
+  const bar = document.getElementById('content');
+  // stats bar is prepended inside render(), see below
+  return `
+    <div class="stats-bar">
+      <div class="stat-block"><div class="num">${done.length}</div><div class="lbl">Hikes done</div></div>
+      <div class="stat-block"><div class="num">${fmtDistance(Math.round(totalKm*10)/10)}</div><div class="lbl">Total distance</div></div>
+      <div class="stat-block"><div class="num">${fmtElevation(totalElev)}</div><div class="lbl">Total gain</div></div>
+      <div class="stat-block"><div class="num">${doneThisYear.length} · ${fmtDistance(Math.round(kmThisYear*10)/10)}</div><div class="lbl">${thisYear} recap</div></div>
+    </div>
+  `;
+}
+
+async function saveHikes(){
+  try{ await window.storage.set(STORAGE_KEY, JSON.stringify(hikes), false); }
+  catch(e){ console.error('save failed', e); }
+}
+async function saveSettings(){
+  try{ await window.storage.set(SETTINGS_KEY, JSON.stringify(settings), false); }
+  catch(e){ console.error('settings save failed', e); }
+}
+
+function renderTabs(){
+  const tabsEl = document.getElementById('viewTabs');
+  const labels = { grid:'Grid', list:'List', map:'Map links' };
+  tabsEl.innerHTML = '';
+  Object.keys(labels).forEach(v=>{
+    if(!settings.views[v]) return;
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (currentView===v ? ' active' : '');
+    b.textContent = labels[v];
+    b.onclick = ()=>{ currentView = v; render(); renderTabs(); };
+    tabsEl.appendChild(b);
+  });
+}
+
+function renderPills(){
+  const statuses = [['all','All'],['Wishlist','Wishlist'],['Planned','Planned'],['Done','Done']];
+  const statusEl = document.getElementById('statusPills');
+  statusEl.innerHTML = '';
+  statuses.forEach(([v,label])=>{
+    const b = document.createElement('button');
+    b.className = 'pill' + (settings.statusFilter===v ? ' active' : '');
+    b.textContent = label;
+    b.onclick = async ()=>{ settings.statusFilter = v; await saveSettings(); renderPills(); render(); };
+    statusEl.appendChild(b);
+  });
+
+  const sorts = [['difficulty','Difficulty'],['name','Name'],['distance','Distance'],['nearest','Nearest']];
+  const sortEl = document.getElementById('sortPills');
+  sortEl.innerHTML = '<span style="font-size:11px; color:var(--ink-soft); align-self:center; margin-right:2px;">Sort</span>';
+  sorts.forEach(([v,label])=>{
+    const b = document.createElement('button');
+    b.className = 'sort-pill' + (settings.sortBy===v ? ' active' : '');
+    b.textContent = label;
+    b.onclick = async ()=>{ settings.sortBy = v; await saveSettings(); renderPills(); render(); };
+    sortEl.appendChild(b);
+  });
+}
+
+const revealObserver = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      entry.target.classList.add('shown');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1 });
+
+function applyReveal(container){
+  const items = container.querySelectorAll('.reveal');
+  items.forEach((el, i)=>{
+    el.style.transitionDelay = Math.min(i * 40, 400) + 'ms';
+    revealObserver.observe(el);
+  });
+}
+
+function getFiltered(){
+  let list = [...hikes];
+  if(settings.statusFilter !== 'all') list = list.filter(h=>h.status===settings.statusFilter);
+  if(searchTerm){
+    const t = searchTerm.toLowerCase();
+    list = list.filter(h => h.name.toLowerCase().includes(t) || (h.region||'').toLowerCase().includes(t));
+  }
+  const sortBy = settings.sortBy;
+  if(sortBy==='difficulty') list.sort((a,b)=>diffOrder[a.difficulty]-diffOrder[b.difficulty]);
+  else if(sortBy==='name') list.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sortBy==='distance') list.sort((a,b)=>(b.distance||0)-(a.distance||0));
+  else if(sortBy==='nearest'){
+    if(settings.homeLat != null && settings.homeLng != null){
+      list.sort((a,b)=>{
+        const da = (a.lat!=null) ? haversine(settings.homeLat,settings.homeLng,a.lat,a.lng) : Infinity;
+        const db = (b.lat!=null) ? haversine(settings.homeLat,settings.homeLng,b.lat,b.lng) : Infinity;
+        return da - db;
+      });
+    }
+  }
+  return list;
+}
+
+function statusBadgeClass(s){
+  if(s==='Done') return 'badge-done';
+  if(s==='Planned') return 'badge-planned';
+  return 'badge-wishlist';
+}
+function diffClass(d){ return 'diff-' + (d||'easy').toLowerCase(); }
+
+function iconBadges(h){
+  let html = '';
+  if(h.photos && h.photos.length){
+    html += `<span class="icon-badge icon-camera" title="${h.photos.length} photo(s)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>`;
+  }
+  if(h.strava){
+    html += `<span class="icon-badge icon-strava" title="Strava link"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2 6 15h4.2l-1.7 7L18 9h-4.3z"/></svg></span>`;
+  }
+  return html ? `<span class="card-icons">${html}</span>` : '';
+}
+
+function awayBadge(h){
+  if(settings.homeLat==null || settings.homeLng==null || h.lat==null || h.lng==null) return '';
+  const d = haversine(settings.homeLat, settings.homeLng, h.lat, h.lng);
+  return `<span class="away-badge">${Math.round(d)} km away</span>`;
+}
+
+function render(){
+  document.getElementById('pageSubtitle').textContent =
+    hikes.length ? `${hikes.length} hike${hikes.length===1?'':'s'} logged` : 'No hikes yet — start your list.';
+  const content = document.getElementById('content');
+  const list = getFiltered();
+  const statsHtml = renderStats();
+
+  if(list.length === 0){
+    content.innerHTML = statsHtml + `<div class="empty"><h3>Nothing here yet</h3><p>Add a hike or adjust your filters.</p></div>`;
+    return;
+  }
+
+  const showPinsMap = currentView !== 'map';
+  content.innerHTML = statsHtml + '<div id="mainViewWrap"></div>'
+    + (showPinsMap ? '<div class="trail-divider"></div><div class="map-wrap" id="pinsMap"></div>' : '')
+    + '<div class="trail-divider"></div><div id="timelineWrap"></div>';
+  const mainWrap = document.getElementById('mainViewWrap');
+  if(currentView === 'grid') renderGrid(mainWrap, list);
+  else if(currentView === 'list') renderList(mainWrap, list);
+  else renderMapLinks(mainWrap, list);
+  if(showPinsMap) renderPinsMap(list);
+  renderTimeline(document.getElementById('timelineWrap'), list);
+  updateBulkBar();
+}
+
+function renderGrid(content, list){
+  content.innerHTML = `<div class="grid${settings.compact?' compact':''}" id="gridWrap"></div>`;
+  const wrap = document.getElementById('gridWrap');
+  list.forEach(h=>{
+    const card = document.createElement('div');
+    card.className = 'card reveal' + (selectMode && selectedIds.has(h.id) ? ' selecting' : '');
+    card.onclick = ()=> selectMode ? toggleSelect(h.id) : openView(h.id);
+    card.innerHTML = `
+      ${selectMode ? `<div class="select-check${selectedIds.has(h.id)?' checked':''}"></div>` : ''}
+      <div class="card-top">
+        <div>
+          <p class="card-name">${esc(h.name)}</p>
+          <p class="card-region">${esc(h.region||'')}</p>
+        </div>
+        <span class="badge ${statusBadgeClass(h.status)}">${h.status}</span>
+      </div>
+      <div class="card-stats">
+        <div><span class="stat-label">Distance</span>${fmtDistance(h.distance)}</div>
+        <div><span class="stat-label">Gain</span>${fmtElevation(h.elevation)}</div>
+      </div>
+      <div class="card-foot">
+        <span class="diff ${diffClass(h.difficulty)}">${h.difficulty||'Easy'}</span>
+        <span style="display:flex; gap:8px; align-items:center;">
+          ${iconBadges(h)}
+          ${awayBadge(h)}
+          ${h.status==='Done' && h.rating ? `<span class="stars">${'★'.repeat(h.rating)}${'☆'.repeat(5-h.rating)}</span>` : ''}
+        </span>
+      </div>
+    `;
+    wrap.appendChild(card);
+  });
+  applyReveal(wrap);
+}
+
+function renderList(content, list){
+  let html = `<div class="list-header"><span>Name</span><span>Region</span><span>Status</span><span>Distance</span><span>Gain</span><span>Difficulty</span></div>`;
+  html += list.map(h=>`
+    <div class="list-row reveal${selectMode && selectedIds.has(h.id) ? ' selecting' : ''}" onclick="${selectMode ? `toggleSelect('${h.id}')` : `openView('${h.id}')`}">
+      ${selectMode ? `<div class="select-check${selectedIds.has(h.id)?' checked':''}" style="position:static; margin-right:6px;"></div>` : ''}
+      <span class="list-name">${esc(h.name)}</span>
+      <span>${esc(h.region||'—')}</span>
+      <span class="badge ${statusBadgeClass(h.status)}">${h.status}</span>
+      <span class="mono">${fmtDistance(h.distance)}</span>
+      <span class="mono">${fmtElevation(h.elevation)}</span>
+      <span class="diff ${diffClass(h.difficulty)}">${h.difficulty||'Easy'} ${iconBadges(h)}</span>
+    </div>
+  `).join('');
+  content.innerHTML = html;
+  applyReveal(content);
+}
+
+function renderMapLinks(content, list){
+  const withCoords = list.filter(h=>h.lat!=null && h.lng!=null);
+  if(withCoords.length===0){ content.innerHTML = `<div class="empty"><h3>No coordinates yet</h3><p>Add latitude/longitude to a hike to see it here.</p></div>`; return; }
+  content.innerHTML = withCoords.map(h=>`
+    <div class="map-link-row reveal" onclick="window.open('https://www.google.com/maps?q=${h.lat},${h.lng}', '_blank')">
+      <div>
+        <div class="list-name">${esc(h.name)}</div>
+        <div class="card-region">${esc(h.region||'')} · ${h.lat.toFixed(3)}, ${h.lng.toFixed(3)} ${awayBadge(h)}</div>
+      </div>
+      <span class="diff ${diffClass(h.difficulty)}">${h.difficulty||'Easy'}</span>
+    </div>
+  `).join('');
+  applyReveal(content);
+}
+
+let _pinsMapInstance = null;
+function renderPinsMap(list){
+  const el = document.getElementById('pinsMap');
+  if(!el) return;
+  if(_pinsMapInstance){ _pinsMapInstance.remove(); _pinsMapInstance = null; }
+  const withCoords = list.filter(h=>h.lat!=null && h.lng!=null);
+  if(typeof L === 'undefined'){
+    el.innerHTML = '<div class="empty" style="padding:40px 20px;"><h3>Map library didn&rsquo;t load</h3><p>Check your connection and reload.</p></div>';
+    return;
+  }
+  if(withCoords.length===0){
+    el.innerHTML = '<div class="empty" style="padding:40px 20px;"><h3>No coordinates yet</h3><p>Add latitude/longitude to a hike to see pins here.</p></div>';
+    return;
+  }
+  const map = L.map(el, { scrollWheelZoom:true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(map);
+
+  const pinClass = h => h.status==='Done' ? 'pin-done' : h.status==='Planned' ? 'pin-planned' : 'pin-wishlist';
+  const markers = [];
+  withCoords.forEach(h=>{
+    const icon = L.divIcon({ className:'', html:`<div class="map-pin ${pinClass(h)}"></div>`, iconSize:[16,16] });
+    const marker = L.marker([h.lat, h.lng], { icon }).addTo(map);
+    const popupHtml = `
+      <div class="map-popup">
+        <p class="name">${esc(h.name)}</p>
+        <div class="stats">${fmtDistance(h.distance)} · ${fmtElevation(h.elevation)}</div>
+        <button onclick="openView('${h.id}')">View details</button>
+      </div>
+    `;
+    marker.bindPopup(popupHtml);
+    markers.push(marker);
+  });
+
+  if(markers.length === 1){
+    map.setView([withCoords[0].lat, withCoords[0].lng], 9);
+  } else {
+    map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
+  }
+  _pinsMapInstance = map;
+}
+
+function renderTimeline(content, list){
+  const unscheduled = list.filter(h=>!h.dateStart);
+  const scheduled = list.filter(h=>h.dateStart).sort((a,b)=> new Date(b.dateStart) - new Date(a.dateStart));
+  let html = '';
+  if(unscheduled.length){
+    html += `<div class="timeline-section"><span class="timeline-label">Unscheduled</span>`;
+    html += unscheduled.map(h=>timelineItem(h,'—')).join('');
+    html += `</div>`;
+  }
+  if(scheduled.length){
+    html += `<div class="timeline-section"><span class="timeline-label">Timeline</span>`;
+    html += scheduled.map(h=>{
+      let dateStr = formatDate(h.dateStart);
+      if(h.dateEnd && h.dateEnd !== h.dateStart) dateStr += ' – ' + formatDate(h.dateEnd);
+      return timelineItem(h, dateStr);
+    }).join('');
+    html += `</div>`;
+  }
+  content.innerHTML = html || `<div class="empty"><h3>Nothing here yet</h3></div>`;
+  applyReveal(content);
+}
+
+function timelineItem(h, dateStr){
+  return `
+    <div class="timeline-item reveal" onclick="${selectMode ? `toggleSelect('${h.id}')` : `openView('${h.id}')`}">
+      <div class="timeline-date mono">${dateStr}</div>
+      <div class="timeline-body">
+        <div class="timeline-name">${esc(h.name)}</div>
+        <div class="timeline-meta">${esc(h.region||'')} · <span class="diff ${diffClass(h.difficulty)}">${h.difficulty||'Easy'}</span> · ${statusText(h)} ${iconBadges(h)}</div>
+      </div>
+    </div>
+  `;
+}
+function statusText(h){
+  return h.status==='Done' && h.rating ? `${h.status} ${'★'.repeat(h.rating)}` : h.status;
+}
+function formatDate(d){
+  if(!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return dt.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+}
+function esc(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- select / bulk mode ---------- */
+function toggleSelect(id){
+  if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  render();
+}
+function updateBulkBar(){
+  const bar = document.getElementById('bulkBar');
+  if(selectMode && selectedIds.size > 0){
+    bar.classList.add('open');
+    document.getElementById('bulkCount').textContent = `${selectedIds.size} selected`;
+  } else {
+    bar.classList.remove('open');
+  }
+}
+document.getElementById('selectBtn').onclick = ()=>{
+  selectMode = !selectMode;
+  selectedIds.clear();
+  document.getElementById('selectBtn').textContent = selectMode ? 'Cancel select' : 'Select';
+  render();
+};
+document.getElementById('bulkCancel').onclick = ()=>{
+  selectMode = false; selectedIds.clear();
+  document.getElementById('selectBtn').textContent = 'Select';
+  render();
+};
+document.querySelectorAll('#bulkBar button[data-status]').forEach(btn=>{
+  btn.onclick = async ()=>{
+    hikes = hikes.map(h => selectedIds.has(h.id) ? { ...h, status: btn.dataset.status } : h);
+    await saveHikes();
+    selectMode = false; selectedIds.clear();
+    document.getElementById('selectBtn').textContent = 'Select';
+    render();
+  };
+});
+document.getElementById('bulkDelete').onclick = async ()=>{
+  const removed = hikes.filter(h=>selectedIds.has(h.id));
+  hikes = hikes.filter(h=>!selectedIds.has(h.id));
+  await saveHikes();
+  selectMode = false; selectedIds.clear();
+  document.getElementById('selectBtn').textContent = 'Select';
+  render();
+  showToast(`${removed.length} hike(s) deleted`, async ()=>{ hikes = [...hikes, ...removed]; await saveHikes(); render(); });
+};
+
+/* ---------- toast ---------- */
+function showToast(msg, undoFn){
+  clearTimeout(pendingUndo);
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  toast.classList.add('shown');
+  const undoBtn = document.getElementById('toastUndo');
+  undoBtn.onclick = ()=>{ toast.classList.remove('shown'); clearTimeout(pendingUndo); if(undoFn) undoFn(); };
+  pendingUndo = setTimeout(()=> toast.classList.remove('shown'), 5000);
+}
+
+/* ---------- search ---------- */
+document.getElementById('searchInput').addEventListener('input', e=>{ searchTerm = e.target.value; render(); });
+
+/* ---------- view (read-only) modal ---------- */
+function openView(id){
+  const h = hikes.find(x=>x.id===id);
+  if(!h) return;
+
+  const overview = [];
+  if(h.region) overview.push(['Region', esc(h.region)]);
+  overview.push(['Status', `<span class="badge ${statusBadgeClass(h.status)}">${h.status}</span>`]);
+  if(h.distance) overview.push(['Distance', fmtDistance(h.distance)]);
+  if(h.elevation) overview.push(['Elevation gain', fmtElevation(h.elevation)]);
+  overview.push(['Difficulty', `<span class="diff ${diffClass(h.difficulty)}">${h.difficulty||'Easy'}</span>`]);
+  if(h.dateStart){
+    let d = formatDate(h.dateStart);
+    if(h.dateEnd && h.dateEnd !== h.dateStart) d += ' – ' + formatDate(h.dateEnd);
+    overview.push(['Date', d]);
+  }
+
+  const details = [];
+  if(h.weather){ const w = WEATHERS.find(x=>x[0]===h.weather); if(w) details.push(['Weather', w[1] + ' ' + w[0]]); }
+  if(h.conditions && h.conditions.length) details.push(['Conditions', esc(h.conditions.join(', '))]);
+  if(h.companions) details.push(['With', esc(h.companions)]);
+  if(h.gear) details.push(['Gear', esc(h.gear)]);
+  if(h.lat!=null && h.lng!=null) details.push(['Location', `<a href="https://www.google.com/maps?q=${h.lat},${h.lng}" target="_blank" rel="noopener">${h.lat.toFixed(3)}, ${h.lng.toFixed(3)}</a> ${awayBadge(h)}`]);
+
+  const links = [];
+  if(h.status==='Done' && h.rating) links.push(['Rating', `<span class="stars">${'★'.repeat(h.rating)}${'☆'.repeat(5-h.rating)}</span>`]);
+  if(h.strava) links.push(['Strava', `<a class="strava-link" href="${esc(h.strava)}" target="_blank" rel="noopener">${iconBadges({strava:h.strava})} Open activity</a>`]);
+
+  const group = (label, rows) => rows.length ? `
+    <div class="view-group">
+      <p class="view-group-label">${label}</p>
+      ${rows.map(([k,v])=>`<div class="view-row"><span class="k">${k}</span><span class="v">${v}</span></div>`).join('')}
+    </div>
+  ` : '';
+
+  document.getElementById('viewModalBody').innerHTML = `
+    <div class="view-head">
+      <h2 class="view-name">${esc(h.name)}</h2>
+      <button class="icon-btn" id="editPencilBtn" title="Edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+    </div>
+    ${h.photos && h.photos.length ? `<div class="view-photo-strip">${h.photos.map(p=>`<img src="${p}">`).join('')}</div>` : ''}
+    ${h.gpxElevations && h.gpxElevations.length ? sparklineSvg(h.gpxElevations) : ''}
+    ${group('Overview', overview)}
+    ${group('Trip details', details)}
+    ${group('Links & rating', links)}
+    ${h.notes ? `<p class="view-notes">${esc(h.notes)}</p>` : ''}
+  `;
+  document.getElementById('editPencilBtn').onclick = ()=>{ closeView(); openEdit(h.id); };
+  document.getElementById('viewOverlay').classList.add('open');
+}
+function closeView(){ document.getElementById('viewOverlay').classList.remove('open'); }
+
+function sparklineSvg(points){
+  const w = 460, h = 60, pad = 4;
+  const min = Math.min(...points), max = Math.max(...points);
+  const range = (max - min) || 1;
+  const step = (w - pad*2) / (points.length - 1 || 1);
+  const path = points.map((p,i)=>{
+    const x = pad + i*step;
+    const y = h - pad - ((p-min)/range)*(h-pad*2);
+    return `${i===0?'M':'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" width="100%" height="${h}"><path d="${path}" fill="none" stroke="var(--pine)" stroke-width="2"/></svg>`;
+}
+
+/* ---------- GPX parsing ---------- */
+function parseGpx(text){
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  const eles = Array.from(doc.getElementsByTagName('ele')).map(n=>parseFloat(n.textContent)).filter(n=>!isNaN(n));
+  if(eles.length === 0) return null;
+  // downsample to ~40 points
+  const target = 40;
+  if(eles.length <= target) return eles;
+  const out = [];
+  const step = eles.length / target;
+  for(let i=0;i<target;i++) out.push(eles[Math.floor(i*step)]);
+  return out;
+}
+document.getElementById('f-gpx').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const points = parseGpx(reader.result);
+    if(points){
+      currentGpx = points;
+      const svg = document.getElementById('gpxPreview');
+      svg.outerHTML = sparklineSvg(points).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"');
+    }
+  };
+  reader.readAsText(file);
+});
+
+/* ---------- difficulty suggestion ---------- */
+function suggestDifficulty(distance, elevation){
+  const score = (distance||0) + (elevation||0)/100;
+  if(score < 8) return 'Easy';
+  if(score < 18) return 'Moderate';
+  if(score < 30) return 'Hard';
+  return 'Expert';
+}
+function updateSuggestHint(){
+  const d = parseFloat(document.getElementById('f-distance').value);
+  const e = parseInt(document.getElementById('f-elevation').value);
+  const hint = document.getElementById('suggestHint');
+  if(!d && !e){ hint.style.display = 'none'; return; }
+  const suggestion = suggestDifficulty(d, e);
+  hint.textContent = `Suggested: ${suggestion} (click to apply)`;
+  hint.style.display = 'block';
+  hint.onclick = ()=>{ document.getElementById('f-difficulty').value = suggestion; };
+}
+document.getElementById('f-distance').addEventListener('input', updateSuggestHint);
+document.getElementById('f-elevation').addEventListener('input', updateSuggestHint);
+
+/* ---------- chips (conditions / weather) ---------- */
+function renderConditionsChips(){
+  const el = document.getElementById('conditionsChips');
+  el.innerHTML = '';
+  CONDITIONS.forEach(c=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (currentConditions.includes(c) ? ' active' : '');
+    b.textContent = c;
+    b.onclick = ()=>{
+      if(currentConditions.includes(c)) currentConditions = currentConditions.filter(x=>x!==c);
+      else currentConditions.push(c);
+      renderConditionsChips();
+    };
+    el.appendChild(b);
+  });
+}
+function renderWeatherChips(){
+  const el = document.getElementById('weatherChips');
+  el.innerHTML = '';
+  WEATHERS.forEach(([w,icon])=>{
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (currentWeather===w ? ' active' : '');
+    b.textContent = icon + ' ' + w;
+    b.onclick = ()=>{ currentWeather = currentWeather===w ? null : w; renderWeatherChips(); };
+    el.appendChild(b);
+  });
+}
+
+/* ---------- photo multi-upload ---------- */
+function renderPhotoPreviews(){
+  const strip = document.getElementById('photoPreviewStrip');
+  strip.innerHTML = '';
+  currentPhotos.forEach((p, i)=>{
+    const div = document.createElement('div');
+    div.className = 'ph';
+    div.innerHTML = `<img src="${p}"><button type="button" class="rm">×</button>`;
+    div.querySelector('.rm').onclick = ()=>{ currentPhotos.splice(i,1); renderPhotoPreviews(); };
+    strip.appendChild(div);
+  });
+}
+document.getElementById('f-photo').addEventListener('change', e=>{
+  const files = Array.from(e.target.files);
+  let remaining = files.length;
+  files.forEach(file=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      currentPhotos.push(reader.result);
+      remaining--;
+      if(remaining === 0) renderPhotoPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+/* ---------- edit modal ---------- */
+function openAdd(){
+  editingId = null;
+  currentRating = 0;
+  currentPhotos = [];
+  currentGpx = null;
+  currentConditions = [];
+  currentWeather = null;
+  document.getElementById('editTitle').textContent = 'Add a hike';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-region').value = '';
+  document.getElementById('f-status').value = settings.defaultStatus;
+  document.getElementById('f-distance').value = '';
+  document.getElementById('f-elevation').value = '';
+  document.getElementById('f-difficulty').value = 'Easy';
+  document.getElementById('f-date-start').value = '';
+  document.getElementById('f-date-end').value = '';
+  document.getElementById('f-lat').value = '';
+  document.getElementById('f-lng').value = '';
+  document.getElementById('f-companions').value = '';
+  document.getElementById('f-photo').value = '';
+  document.getElementById('f-gpx').value = '';
+  document.getElementById('f-strava').value = '';
+  document.getElementById('f-gear').value = '';
+  document.getElementById('f-notes').value = '';
+  document.getElementById('suggestHint').style.display = 'none';
+  document.getElementById('gpxPreview').style.display = 'none';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('duplicateBtn').style.display = 'none';
+  renderPhotoPreviews();
+  renderConditionsChips();
+  renderWeatherChips();
+  updateRatingVisibility();
+  updateDateVisibility();
+  drawStars();
+  document.getElementById('editOverlay').classList.add('open');
+}
+
+function openEdit(id){
+  const h = hikes.find(x=>x.id===id);
+  if(!h) return;
+  editingId = id;
+  currentRating = h.rating || 0;
+  currentPhotos = [...(h.photos || [])];
+  currentGpx = h.gpxElevations || null;
+  currentConditions = [...(h.conditions || [])];
+  currentWeather = h.weather || null;
+  document.getElementById('editTitle').textContent = h.name;
+  document.getElementById('f-name').value = h.name || '';
+  document.getElementById('f-region').value = h.region || '';
+  document.getElementById('f-status').value = h.status || 'Wishlist';
+  document.getElementById('f-distance').value = h.distance || '';
+  document.getElementById('f-elevation').value = h.elevation || '';
+  document.getElementById('f-difficulty').value = h.difficulty || 'Easy';
+  document.getElementById('f-date-start').value = h.dateStart || '';
+  document.getElementById('f-date-end').value = h.dateEnd || '';
+  document.getElementById('f-lat').value = h.lat ?? '';
+  document.getElementById('f-lng').value = h.lng ?? '';
+  document.getElementById('f-companions').value = h.companions || '';
+  document.getElementById('f-photo').value = '';
+  document.getElementById('f-gpx').value = '';
+  document.getElementById('f-strava').value = h.strava || '';
+  document.getElementById('f-gear').value = h.gear || '';
+  document.getElementById('f-notes').value = h.notes || '';
+  document.getElementById('suggestHint').style.display = 'none';
+  const gpxSvg = document.getElementById('gpxPreview');
+  if(currentGpx){ gpxSvg.outerHTML = sparklineSvg(currentGpx).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"'); }
+  else { gpxSvg.style.display = 'none'; }
+  document.getElementById('deleteBtn').style.display = 'inline-block';
+  document.getElementById('duplicateBtn').style.display = 'inline-block';
+  renderPhotoPreviews();
+  renderConditionsChips();
+  renderWeatherChips();
+  updateRatingVisibility();
+  updateDateVisibility();
+  drawStars();
+  document.getElementById('editOverlay').classList.add('open');
+}
+
+function closeEdit(){ document.getElementById('editOverlay').classList.remove('open'); }
+
+function updateRatingVisibility(){
+  const isDone = document.getElementById('f-status').value === 'Done';
+  document.getElementById('ratingField').style.display = isDone ? 'block' : 'none';
+}
+function updateDateVisibility(){
+  const isWishlist = document.getElementById('f-status').value === 'Wishlist';
+  document.getElementById('dateFields').style.display = isWishlist ? 'none' : 'grid';
+}
+function drawStars(){
+  document.querySelectorAll('#starPicker span').forEach(s=>{
+    s.classList.toggle('filled', Number(s.dataset.v) <= currentRating);
+  });
+}
+document.getElementById('starPicker').addEventListener('click', e=>{
+  if(e.target.dataset.v){ currentRating = Number(e.target.dataset.v); drawStars(); }
+});
+document.getElementById('f-status').addEventListener('change', ()=>{ updateRatingVisibility(); updateDateVisibility(); });
+
+async function saveHike(){
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ document.getElementById('f-name').focus(); return; }
+  const isWishlist = document.getElementById('f-status').value === 'Wishlist';
+  const data = {
+    name,
+    region: document.getElementById('f-region').value.trim(),
+    status: document.getElementById('f-status').value,
+    distance: parseFloat(document.getElementById('f-distance').value) || null,
+    elevation: parseInt(document.getElementById('f-elevation').value) || null,
+    difficulty: document.getElementById('f-difficulty').value,
+    dateStart: isWishlist ? null : (document.getElementById('f-date-start').value || null),
+    dateEnd: isWishlist ? null : (document.getElementById('f-date-end').value || null),
+    lat: document.getElementById('f-lat').value ? parseFloat(document.getElementById('f-lat').value) : null,
+    lng: document.getElementById('f-lng').value ? parseFloat(document.getElementById('f-lng').value) : null,
+    companions: document.getElementById('f-companions').value.trim(),
+    photos: currentPhotos,
+    gpxElevations: currentGpx,
+    strava: document.getElementById('f-strava').value.trim() || null,
+    gear: document.getElementById('f-gear').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    conditions: currentConditions,
+    weather: currentWeather,
+    rating: document.getElementById('f-status').value === 'Done' ? currentRating : null,
+  };
+  if(editingId){
+    const idx = hikes.findIndex(h=>h.id===editingId);
+    hikes[idx] = { ...hikes[idx], ...data };
+  } else {
+    data.id = 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    hikes.push(data);
+  }
+  await saveHikes();
+  closeEdit();
+  render();
+}
+
+async function deleteHike(){
+  if(!editingId) return;
+  const removed = hikes.find(h=>h.id===editingId);
+  hikes = hikes.filter(h=>h.id!==editingId);
+  await saveHikes();
+  closeEdit();
+  render();
+  showToast(`"${removed.name}" deleted`, async ()=>{ hikes.push(removed); await saveHikes(); render(); });
+}
+
+function duplicateHike(){
+  if(!editingId) return;
+  const h = hikes.find(x=>x.id===editingId);
+  if(!h) return;
+  const copy = { ...h, id: 'h_' + Date.now() + '_' + Math.random().toString(36).slice(2,7), name: h.name + ' (copy)' };
+  hikes.push(copy);
+  saveHikes();
+  closeEdit();
+  render();
+}
+
+document.getElementById('addBtn').onclick = openAdd;
+document.getElementById('cancelBtn').onclick = closeEdit;
+document.getElementById('saveBtn').onclick = saveHike;
+document.getElementById('deleteBtn').onclick = deleteHike;
+document.getElementById('duplicateBtn').onclick = duplicateHike;
+document.getElementById('editOverlay').addEventListener('click', e=>{ if(e.target.id==='editOverlay') closeEdit(); });
+document.getElementById('viewOverlay').addEventListener('click', e=>{ if(e.target.id==='viewOverlay') closeView(); });
+
+/* ---------- settings modal ---------- */
+document.getElementById('settingsBtn').onclick = ()=>{
+  document.getElementById('viewGrid').checked = !!settings.views.grid;
+  document.getElementById('viewList').checked = !!settings.views.list;
+  document.getElementById('viewMap').checked = !!settings.views.map;
+  document.getElementById('compactToggle').checked = !!settings.compact;
+  document.getElementById('darkToggle').checked = !!settings.dark;
+  document.getElementById('unitSelect').value = settings.unit;
+  document.getElementById('defaultStatusSelect').value = settings.defaultStatus;
+  document.getElementById('homeLat').value = settings.homeLat ?? '';
+  document.getElementById('homeLng').value = settings.homeLng ?? '';
+  document.getElementById('settingsOverlay').classList.add('open');
+};
+document.getElementById('settingsOverlay').addEventListener('click', e=>{ if(e.target.id==='settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open'); });
+document.getElementById('exportBtn').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(hikes, null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'hikes-export.json';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+document.getElementById('settingsDone').onclick = async ()=>{
+  const g = document.getElementById('viewGrid').checked;
+  const l = document.getElementById('viewList').checked;
+  const m = document.getElementById('viewMap').checked;
+  if(!g && !l && !m){ alert('Enable at least one view.'); return; }
+  settings.views = { grid:g, list:l, map:m };
+  settings.compact = document.getElementById('compactToggle').checked;
+  settings.dark = document.getElementById('darkToggle').checked;
+  settings.unit = document.getElementById('unitSelect').value;
+  settings.defaultStatus = document.getElementById('defaultStatusSelect').value;
+  settings.homeLat = document.getElementById('homeLat').value ? parseFloat(document.getElementById('homeLat').value) : null;
+  settings.homeLng = document.getElementById('homeLng').value ? parseFloat(document.getElementById('homeLng').value) : null;
+  await saveSettings();
+  applyTheme();
+  const enabled = Object.keys(settings.views).filter(v=>settings.views[v]);
+  if(!enabled.includes(currentView)) currentView = enabled[0];
+  renderTabs();
+  render();
+  document.getElementById('settingsOverlay').classList.remove('open');
+};
+
+loadData();
+</script>
+</body>
+</html>
