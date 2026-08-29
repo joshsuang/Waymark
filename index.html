@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>Waymark — Nand's Hiking Log</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23263D2F'/%3E%3Cpath d='M2 24 L11 10 L15 16 L20 7 L30 24 Z' fill='%23EEF0E8'/%3E%3Ccircle cx='23' cy='9' r='2.4' fill='%23A9791A'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
@@ -209,6 +210,41 @@ body.dark .leaflet-tile-pane{ filter: invert(92%) hue-rotate(180deg) brightness(
   border-radius:8px; margin-bottom:8px; cursor:pointer;
 }
 .map-link-row:hover{border-color:var(--pine);}
+
+/* ---------- plan tab ---------- */
+.plan-grid{
+  display:grid;
+  grid-template-columns:repeat(7, 1fr);
+  gap:10px;
+}
+.plan-day{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-height:170px;
+}
+.plan-day-date{
+  font-family:var(--font-mono);
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+  color:var(--ink-soft);
+}
+.plan-day select, .plan-day textarea{
+  font-family:var(--font-body);
+  font-size:12.5px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  padding:6px 8px;
+  background:var(--bg);
+  color:var(--ink);
+  width:100%;
+}
+.plan-day textarea{ min-height:60px; resize:vertical; flex:1; }
 
 /* ---------- stats bar ---------- */
 .stats-bar{
@@ -532,6 +568,7 @@ body.dark .badge-done{background:#213329;}
   padding:20px;
   z-index:1000;
 }
+#lightboxOverlay{ background:rgba(10,14,11,0.9); cursor:zoom-out; }
 .overlay.open{display:flex;}
 .modal{
   background:var(--surface);
@@ -576,27 +613,38 @@ body.dark .badge-done{background:#213329;}
 .modal-actions{display:flex; justify-content:space-between; margin-top:20px; gap:10px;}
 
 @media(max-width:640px){
-  .topo{padding:24px 18px 18px;}
-  h1{font-size:26px;}
-  .toolbar{padding:12px 16px; flex-direction:column; align-items:stretch;}
+  .topo{padding:20px 16px 16px;}
+  h1{font-size:24px;}
+  .toolbar{padding:10px 14px; flex-direction:column; align-items:stretch; gap:8px;}
   .toolbar-group{justify-content:space-between;}
-  .search-input{width:100%;}
-  .tabs{width:100%;}
-  .tab-btn{flex:1;}
-  .content{padding:16px 16px 90px;}
-  .grid{grid-template-columns:1fr;}
+  .search-input{width:100%; font-size:16px;}
+  .tabs{width:100%; overflow-x:auto;}
+  .tab-btn{flex:1; white-space:nowrap;}
+  .content{padding:14px 14px 90px;}
+  .stats-bar{grid-template-columns:repeat(2,1fr);}
+  .grid{grid-template-columns:1fr; gap:12px;}
+  .card{padding:14px;}
   .list-row{grid-template-columns:1.4fr 0.8fr 0.8fr; padding:14px;}
   .list-row span:nth-child(4), .list-row span:nth-child(5), .list-row span:nth-child(6){display:none;}
   .list-header span:nth-child(4), .list-header span:nth-child(5), .list-header span:nth-child(6){display:none;}
-  .modal{max-width:100%; max-height:100vh; height:100vh; border-radius:0; padding:20px;}
+  .modal{max-width:100%; max-height:100vh; height:100vh; border-radius:0; padding:18px 16px 24px;}
   .overlay{padding:0;}
   .row-2{grid-template-columns:1fr;}
-  .btn, .pill, .tab-btn{padding:9px 14px;}
-  .timeline-date{width:70px; font-size:11px;}
+  .field input, .field select, .field textarea{font-size:16px;}
+  .btn, .pill, .tab-btn{padding:10px 14px; font-size:13.5px;}
+  .modal-actions{flex-wrap:wrap;}
+  .modal-actions > div{width:100%; justify-content:stretch;}
+  .modal-actions > div button{flex:1;}
+  .timeline-date{width:64px; font-size:10.5px;}
   .bulk-bar{flex-direction:column; align-items:stretch;}
+  .map-wrap{height:260px;}
+  .plan-grid{grid-template-columns:1fr; gap:12px;}
+  .plan-day{min-height:auto;}
+  .view-photo-strip img{height:96px;}
 }
 </style>
 </head>
+
 <body>
 
 <div class="topo">
@@ -611,7 +659,7 @@ body.dark .badge-done{background:#213329;}
     </g>
   </svg>
   <div class="topo-content">
-    <p class="eyebrow"><span class="blaze"></span>Trail log</p>
+    <p class="eyebrow"><span class="blaze"></span>Trail Log</p>
     <h1 id="pageTitle">Your hikes</h1>
     <p class="subtitle" id="pageSubtitle">Loading…</p>
   </div>
@@ -660,10 +708,6 @@ body.dark .badge-done{background:#213329;}
     </div>
     <div class="row-2">
       <div class="field">
-        <label for="f-region">Region</label>
-        <input type="text" id="f-region" placeholder="e.g. French Alps">
-      </div>
-      <div class="field">
         <label for="f-status">Status</label>
         <select id="f-status">
           <option>Wishlist</option>
@@ -671,88 +715,104 @@ body.dark .badge-done{background:#213329;}
           <option>Done</option>
         </select>
       </div>
-    </div>
-    <div class="row-2">
       <div class="field">
-        <label for="f-distance">Distance (km)</label>
-        <input type="number" step="0.1" id="f-distance" placeholder="e.g. 12.5">
-      </div>
-      <div class="field">
-        <label for="f-elevation">Elevation gain (m)</label>
-        <input type="number" id="f-elevation" placeholder="e.g. 850">
+        <label for="f-difficulty">Difficulty</label>
+        <select id="f-difficulty">
+          <option>Easy</option>
+          <option>Moderate</option>
+          <option>Hard</option>
+          <option>Expert</option>
+        </select>
       </div>
     </div>
     <div class="field">
-      <label for="f-difficulty">Difficulty</label>
-      <select id="f-difficulty">
-        <option>Easy</option>
-        <option>Moderate</option>
-        <option>Hard</option>
-        <option>Expert</option>
-      </select>
-      <div class="suggest-hint" id="suggestHint" style="display:none;"></div>
+      <label for="f-address">Address / place</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="f-address" placeholder="e.g. Chamonix, France" style="flex:1;">
+        <button type="button" class="btn" id="geocodeBtn" style="flex-shrink:0;">Find</button>
+      </div>
+      <div class="suggest-hint" id="geocodeHint" style="display:none;"></div>
     </div>
-    <div class="row-2" id="dateFields">
-      <div class="field">
-        <label for="f-date-start">Date (start)</label>
-        <input type="date" id="f-date-start">
+
+    <button type="button" class="btn" id="moreDetailsToggle" style="width:100%; margin-bottom:14px;">+ More details (distance, dates, photos, notes…)</button>
+
+    <div id="moreDetailsSection" style="display:none;">
+      <div class="row-2">
+        <div class="field">
+          <label for="f-region">Region / province</label>
+          <input type="text" id="f-region" placeholder="auto-filled from address">
+        </div>
+        <div class="field">
+          <label for="f-distance">Distance (km)</label>
+          <input type="number" step="0.1" id="f-distance" placeholder="e.g. 12.5">
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label for="f-elevation">Elevation gain (m)</label>
+          <input type="number" id="f-elevation" placeholder="e.g. 850">
+          <div class="suggest-hint" id="suggestHint" style="display:none;"></div>
+        </div>
+        <div class="field">
+          <label for="f-start-address">Starting point (optional)</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="f-start-address" placeholder="trailhead / parking" style="flex:1;">
+            <button type="button" class="btn" id="startGeocodeBtn" style="flex-shrink:0; padding:8px 10px;">Find</button>
+          </div>
+        </div>
+      </div>
+      <div class="row-2" id="dateFields">
+        <div class="field">
+          <label for="f-date-start">Date (start)</label>
+          <input type="date" id="f-date-start">
+        </div>
+        <div class="field">
+          <label for="f-date-end">Date (end, optional)</label>
+          <input type="date" id="f-date-end">
+        </div>
       </div>
       <div class="field">
-        <label for="f-date-end">Date (end, optional)</label>
-        <input type="date" id="f-date-end">
-      </div>
-    </div>
-    <div class="row-2">
-      <div class="field">
-        <label for="f-lat">Latitude</label>
-        <input type="number" step="0.0001" id="f-lat" placeholder="e.g. 45.8326">
+        <label>Trail conditions</label>
+        <div class="chip-group" id="conditionsChips"></div>
       </div>
       <div class="field">
-        <label for="f-lng">Longitude</label>
-        <input type="number" step="0.0001" id="f-lng" placeholder="e.g. 6.8652">
+        <label>Weather</label>
+        <div class="chip-group" id="weatherChips"></div>
       </div>
-    </div>
-    <div class="field">
-      <label>Trail conditions</label>
-      <div class="chip-group" id="conditionsChips"></div>
-    </div>
-    <div class="field">
-      <label>Weather</label>
-      <div class="chip-group" id="weatherChips"></div>
-    </div>
-    <div class="row-2">
-      <div class="field">
-        <label for="f-companions">Companions</label>
-        <input type="text" id="f-companions" placeholder="e.g. Sam, Lea">
+      <div class="row-2">
+        <div class="field">
+          <label for="f-companions">Companions</label>
+          <input type="text" id="f-companions" placeholder="e.g. Sam, Lea">
+        </div>
+        <div class="field">
+          <label for="f-strava">Strava link</label>
+          <input type="url" id="f-strava" placeholder="https://strava.com/...">
+        </div>
       </div>
       <div class="field">
-        <label for="f-strava">Strava link</label>
-        <input type="url" id="f-strava" placeholder="https://strava.com/...">
+        <label for="f-photo">Photos</label>
+        <input type="file" id="f-photo" accept="image/*" multiple>
+        <div class="photo-preview-strip" id="photoPreviewStrip"></div>
       </div>
-    </div>
-    <div class="field">
-      <label for="f-photo">Photos</label>
-      <input type="file" id="f-photo" accept="image/*" multiple>
-      <div class="photo-preview-strip" id="photoPreviewStrip"></div>
-    </div>
-    <div class="field">
-      <label for="f-gpx">GPX file (elevation profile)</label>
-      <input type="file" id="f-gpx" accept=".gpx">
-      <svg id="gpxPreview" class="sparkline" width="100%" height="40" style="display:none;"></svg>
-    </div>
-    <div class="field" id="ratingField" style="display:none;">
-      <label>Rating</label>
-      <div class="star-picker" id="starPicker">
-        <span data-v="1">★</span><span data-v="2">★</span><span data-v="3">★</span><span data-v="4">★</span><span data-v="5">★</span>
+      <div class="field">
+        <label for="f-gpx">GPX file (elevation profile)</label>
+        <input type="file" id="f-gpx" accept=".gpx">
+        <svg id="gpxPreview" class="sparkline" width="100%" height="40" style="display:none;"></svg>
       </div>
-    </div>
-    <div class="field">
-      <label for="f-gear">Gear notes</label>
-      <input type="text" id="f-gear" placeholder="e.g. new boots, trekking poles">
-    </div>
-    <div class="field">
-      <label for="f-notes">Trail notes</label>
-      <textarea id="f-notes" placeholder="Conditions, memories..."></textarea>
+      <div class="field" id="ratingField" style="display:none;">
+        <label>Rating</label>
+        <div class="star-picker" id="starPicker">
+          <span data-v="1">★</span><span data-v="2">★</span><span data-v="3">★</span><span data-v="4">★</span><span data-v="5">★</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-gear">Gear notes</label>
+        <input type="text" id="f-gear" placeholder="e.g. new boots, trekking poles">
+      </div>
+      <div class="field">
+        <label for="f-notes">Trail notes</label>
+        <textarea id="f-notes" placeholder="Conditions, memories..."></textarea>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn" id="deleteBtn" style="color:var(--rust); display:none;">Delete</button>
@@ -768,6 +828,11 @@ body.dark .badge-done{background:#213329;}
 <!-- View (detail) modal -->
 <div class="overlay" id="viewOverlay">
   <div class="modal" id="viewModalBody"></div>
+</div>
+
+<!-- Lightbox -->
+<div class="overlay" id="lightboxOverlay" onclick="closeLightbox()">
+  <img id="lightboxImg" style="max-width:92vw; max-height:92vh; border-radius:6px;">
 </div>
 
 <!-- Settings modal -->
@@ -817,6 +882,7 @@ body.dark .badge-done{background:#213329;}
   </div>
 </div>
 
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
@@ -829,6 +895,7 @@ function toRow(h){
     id: h.id, name: h.name, region: h.region, status: h.status,
     distance: h.distance, elevation: h.elevation, difficulty: h.difficulty,
     date_start: h.dateStart, date_end: h.dateEnd, lat: h.lat, lng: h.lng,
+    address: h.address, start_address: h.startAddress, start_lat: h.startLat, start_lng: h.startLng,
     companions: h.companions, photos: h.photos || [], gpx_elevations: h.gpxElevations,
     strava: h.strava, gear: h.gear, notes: h.notes, conditions: h.conditions || [],
     weather: h.weather, rating: h.rating
@@ -839,6 +906,7 @@ function fromRow(r){
     id: r.id, name: r.name, region: r.region, status: r.status,
     distance: r.distance, elevation: r.elevation, difficulty: r.difficulty,
     dateStart: r.date_start, dateEnd: r.date_end, lat: r.lat, lng: r.lng,
+    address: r.address, startAddress: r.start_address, startLat: r.start_lat, startLng: r.start_lng,
     companions: r.companions, photos: r.photos || [], gpxElevations: r.gpx_elevations,
     strava: r.strava, gear: r.gear, notes: r.notes, conditions: r.conditions || [],
     weather: r.weather, rating: r.rating
@@ -863,6 +931,8 @@ let searchTerm = '';
 let selectMode = false;
 let selectedIds = new Set();
 let pendingUndo = null;
+let planWeekStart = null;
+let planData = {};
 
 const diffOrder = { Easy: 0, Moderate: 1, Hard: 2, Expert: 3 };
 const CONDITIONS = ['Muddy','Rocky','Snow','Exposed','Shaded'];
@@ -969,6 +1039,11 @@ function renderTabs(){
     b.onclick = ()=>{ currentView = v; render(); renderTabs(); };
     tabsEl.appendChild(b);
   });
+  const planBtn = document.createElement('button');
+  planBtn.className = 'tab-btn' + (currentView==='plan' ? ' active' : '');
+  planBtn.textContent = 'Plan';
+  planBtn.onclick = ()=>{ currentView = 'plan'; render(); renderTabs(); };
+  tabsEl.appendChild(planBtn);
 }
 
 function renderPills(){
@@ -1063,6 +1138,12 @@ function render(){
   document.getElementById('pageSubtitle').textContent =
     hikes.length ? `${hikes.length} hike${hikes.length===1?'':'s'} logged` : 'No hikes yet — start your list.';
   const content = document.getElementById('content');
+
+  if(currentView === 'plan'){
+    renderPlanView(content);
+    return;
+  }
+
   const list = getFiltered();
   const statsHtml = renderStats();
 
@@ -1194,6 +1275,79 @@ function renderPinsMap(list){
   _pinsMapInstance = map;
 }
 
+/* ---------- plan tab ---------- */
+function getMonday(d){
+  const day = d.getDay();
+  const diff = (day===0 ? -6 : 1-day);
+  const monday = new Date(d);
+  monday.setDate(d.getDate()+diff);
+  monday.setHours(0,0,0,0);
+  return monday;
+}
+function fmtISO(d){
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+async function loadPlanWeek(){
+  if(!planWeekStart) planWeekStart = getMonday(new Date());
+  const start = fmtISO(planWeekStart);
+  const endDate = new Date(planWeekStart); endDate.setDate(endDate.getDate()+6);
+  const end = fmtISO(endDate);
+  try{
+    const { data } = await sb.from('hikes_plan').select('*').gte('day_date', start).lte('day_date', end);
+    planData = {};
+    (data||[]).forEach(r=>{ planData[r.day_date] = r; });
+  }catch(e){ console.error('plan load failed', e); planData = {}; }
+}
+
+async function savePlanDay(dateStr, hikeId, campNote){
+  planData[dateStr] = { day_date: dateStr, hike_id: hikeId || null, camp_note: campNote || null };
+  try{ await sb.from('hikes_plan').upsert({ day_date: dateStr, hike_id: hikeId || null, camp_note: campNote || null }); }
+  catch(e){ console.error('plan save failed', e); }
+}
+
+async function renderPlanView(container){
+  container.innerHTML = `<div class="empty"><h3>Loading plan…</h3></div>`;
+  await loadPlanWeek();
+  const days = [];
+  for(let i=0;i<7;i++){ const d = new Date(planWeekStart); d.setDate(d.getDate()+i); days.push(d); }
+  const weekLabel = `${days[0].toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${days[6].toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}`;
+
+  container.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+      <button class="btn" id="planPrevWeek">‹ Prev week</button>
+      <div class="list-name" style="font-size:16px;">${weekLabel}</div>
+      <button class="btn" id="planNextWeek">Next week ›</button>
+    </div>
+    <div class="plan-grid">
+      ${days.map(d=>{
+        const iso = fmtISO(d);
+        const entry = planData[iso] || {};
+        const dayLabel = d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+        return `
+          <div class="plan-day">
+            <div class="plan-day-date">${dayLabel}</div>
+            <select data-date="${iso}" class="plan-hike-select">
+              <option value="">— no hike —</option>
+              ${hikes.map(h=>`<option value="${h.id}" ${entry.hike_id===h.id?'selected':''}>${esc(h.name)}</option>`).join('')}
+            </select>
+            <textarea data-date="${iso}" class="plan-camp-note" placeholder="Camping / stay notes…">${esc(entry.camp_note||'')}</textarea>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+  document.getElementById('planPrevWeek').onclick = ()=>{ planWeekStart.setDate(planWeekStart.getDate()-7); renderPlanView(container); };
+  document.getElementById('planNextWeek').onclick = ()=>{ planWeekStart.setDate(planWeekStart.getDate()+7); renderPlanView(container); };
+  container.querySelectorAll('.plan-hike-select').forEach(sel=>{
+    sel.onchange = ()=> savePlanDay(sel.dataset.date, sel.value, (planData[sel.dataset.date]||{}).camp_note);
+  });
+  container.querySelectorAll('.plan-camp-note').forEach(ta=>{
+    ta.onblur = ()=> savePlanDay(ta.dataset.date, (planData[ta.dataset.date]||{}).hike_id, ta.value);
+  });
+}
+
 function renderTimeline(content, list){
   const unscheduled = list.filter(h=>!h.dateStart);
   const scheduled = list.filter(h=>h.dateStart).sort((a,b)=> new Date(b.dateStart) - new Date(a.dateStart));
@@ -1319,7 +1473,8 @@ function openView(id){
   if(h.conditions && h.conditions.length) details.push(['Conditions', esc(h.conditions.join(', '))]);
   if(h.companions) details.push(['With', esc(h.companions)]);
   if(h.gear) details.push(['Gear', esc(h.gear)]);
-  if(h.lat!=null && h.lng!=null) details.push(['Location', `<a href="https://www.google.com/maps?q=${h.lat},${h.lng}" target="_blank" rel="noopener">${h.lat.toFixed(3)}, ${h.lng.toFixed(3)}</a> ${awayBadge(h)}`]);
+  if(h.lat!=null && h.lng!=null) details.push(['Location', `<a href="https://www.google.com/maps?q=${h.lat},${h.lng}" target="_blank" rel="noopener">${esc(h.address || (h.lat.toFixed(3)+', '+h.lng.toFixed(3)))}</a> ${awayBadge(h)}`]);
+  if(h.startLat!=null && h.startLng!=null) details.push(['Starting point', `<a href="https://www.google.com/maps?q=${h.startLat},${h.startLng}" target="_blank" rel="noopener">${esc(h.startAddress || (h.startLat.toFixed(3)+', '+h.startLng.toFixed(3)))}</a>`]);
 
   const links = [];
   if(h.status==='Done' && h.rating) links.push(['Rating', `<span class="stars">${'★'.repeat(h.rating)}${'☆'.repeat(5-h.rating)}</span>`]);
@@ -1335,11 +1490,16 @@ function openView(id){
   document.getElementById('viewModalBody').innerHTML = `
     <div class="view-head">
       <h2 class="view-name">${esc(h.name)}</h2>
-      <button class="icon-btn" id="editPencilBtn" title="Edit">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      </button>
+      <div style="display:flex; gap:8px; flex-shrink:0;">
+        <button class="icon-btn" id="sharePngBtn" title="Share as image">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v14"/></svg>
+        </button>
+        <button class="icon-btn" id="editPencilBtn" title="Edit">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+      </div>
     </div>
-    ${h.photos && h.photos.length ? `<div class="view-photo-strip">${h.photos.map(p=>`<img src="${p}">`).join('')}</div>` : ''}
+    ${h.photos && h.photos.length ? `<div class="view-photo-strip">${h.photos.map(p=>`<img src="${p}" onclick="openLightbox(this.src)">`).join('')}</div>` : ''}
     ${h.gpxElevations && h.gpxElevations.length ? sparklineSvg(h.gpxElevations) : ''}
     ${group('Overview', overview)}
     ${group('Trip details', details)}
@@ -1347,9 +1507,45 @@ function openView(id){
     ${h.notes ? `<p class="view-notes">${esc(h.notes)}</p>` : ''}
   `;
   document.getElementById('editPencilBtn').onclick = ()=>{ closeView(); openEdit(h.id); };
+  document.getElementById('sharePngBtn').onclick = ()=> shareHikeAsPng(h);
   document.getElementById('viewOverlay').classList.add('open');
 }
 function closeView(){ document.getElementById('viewOverlay').classList.remove('open'); }
+
+function openLightbox(src){
+  document.getElementById('lightboxImg').src = src;
+  document.getElementById('lightboxOverlay').classList.add('open');
+}
+function closeLightbox(){
+  document.getElementById('lightboxOverlay').classList.remove('open');
+}
+
+async function shareHikeAsPng(h){
+  if(typeof html2canvas === 'undefined'){ alert('Share feature failed to load — check your connection and reload.'); return; }
+  const card = document.createElement('div');
+  card.style.cssText = 'width:600px; padding:40px; background:linear-gradient(160deg,#1B2620,#263D2F); font-family:Work Sans, sans-serif; color:#fff; position:fixed; left:-9999px; top:0;';
+  const dateStr = h.dateStart ? formatDate(h.dateStart) : '';
+  card.innerHTML = `
+    <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#A9791A; margin-bottom:10px;">Waymark</div>
+    <div style="font-family:Fraunces, serif; font-weight:600; font-size:32px; margin-bottom:4px;">${esc(h.name)}</div>
+    <div style="font-size:14px; color:#9BAA98; margin-bottom:28px;">${esc(h.region||'')}${dateStr ? ' · '+dateStr : ''}</div>
+    <div style="display:flex; gap:32px;">
+      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${fmtDistance(h.distance)}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Distance</div></div>
+      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${fmtElevation(h.elevation)}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Elevation gain</div></div>
+      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${h.difficulty||'Easy'}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Difficulty</div></div>
+    </div>
+    ${h.status==='Done' && h.rating ? `<div style="margin-top:24px; color:#D9B34E; font-size:18px; letter-spacing:2px;">${'★'.repeat(h.rating)}${'☆'.repeat(5-h.rating)}</div>` : ''}
+  `;
+  document.body.appendChild(card);
+  try{
+    const canvas = await html2canvas(card, { backgroundColor: null, scale: 2 });
+    const link = document.createElement('a');
+    link.download = h.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase() + '-waymark.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }catch(e){ console.error('share render failed', e); alert('Could not generate the share image.'); }
+  document.body.removeChild(card);
+}
 
 function sparklineSvg(points){
   const w = 460, h = 60, pad = 4;
@@ -1470,6 +1666,8 @@ document.getElementById('f-photo').addEventListener('change', e=>{
 });
 
 /* ---------- edit modal ---------- */
+let currentLat = null, currentLng = null, currentStartLat = null, currentStartLng = null;
+
 function openAdd(){
   editingId = null;
   currentRating = 0;
@@ -1477,17 +1675,19 @@ function openAdd(){
   currentGpx = null;
   currentConditions = [];
   currentWeather = null;
+  currentLat = null; currentLng = null; currentStartLat = null; currentStartLng = null;
   document.getElementById('editTitle').textContent = 'Add a hike';
   document.getElementById('f-name').value = '';
   document.getElementById('f-region').value = '';
   document.getElementById('f-status').value = settings.defaultStatus;
+  document.getElementById('f-address').value = '';
+  document.getElementById('f-start-address').value = '';
+  document.getElementById('geocodeHint').style.display = 'none';
   document.getElementById('f-distance').value = '';
   document.getElementById('f-elevation').value = '';
   document.getElementById('f-difficulty').value = 'Easy';
   document.getElementById('f-date-start').value = '';
   document.getElementById('f-date-end').value = '';
-  document.getElementById('f-lat').value = '';
-  document.getElementById('f-lng').value = '';
   document.getElementById('f-companions').value = '';
   document.getElementById('f-photo').value = '';
   document.getElementById('f-gpx').value = '';
@@ -1498,6 +1698,8 @@ function openAdd(){
   document.getElementById('gpxPreview').style.display = 'none';
   document.getElementById('deleteBtn').style.display = 'none';
   document.getElementById('duplicateBtn').style.display = 'none';
+  document.getElementById('moreDetailsSection').style.display = 'none';
+  document.getElementById('moreDetailsToggle').textContent = '+ More details (distance, dates, photos, notes…)';
   renderPhotoPreviews();
   renderConditionsChips();
   renderWeatherChips();
@@ -1516,17 +1718,20 @@ function openEdit(id){
   currentGpx = h.gpxElevations || null;
   currentConditions = [...(h.conditions || [])];
   currentWeather = h.weather || null;
+  currentLat = h.lat ?? null; currentLng = h.lng ?? null;
+  currentStartLat = h.startLat ?? null; currentStartLng = h.startLng ?? null;
   document.getElementById('editTitle').textContent = h.name;
   document.getElementById('f-name').value = h.name || '';
   document.getElementById('f-region').value = h.region || '';
   document.getElementById('f-status').value = h.status || 'Wishlist';
+  document.getElementById('f-address').value = h.address || '';
+  document.getElementById('f-start-address').value = h.startAddress || '';
+  document.getElementById('geocodeHint').style.display = 'none';
   document.getElementById('f-distance').value = h.distance || '';
   document.getElementById('f-elevation').value = h.elevation || '';
   document.getElementById('f-difficulty').value = h.difficulty || 'Easy';
   document.getElementById('f-date-start').value = h.dateStart || '';
   document.getElementById('f-date-end').value = h.dateEnd || '';
-  document.getElementById('f-lat').value = h.lat ?? '';
-  document.getElementById('f-lng').value = h.lng ?? '';
   document.getElementById('f-companions').value = h.companions || '';
   document.getElementById('f-photo').value = '';
   document.getElementById('f-gpx').value = '';
@@ -1539,6 +1744,8 @@ function openEdit(id){
   else { gpxSvg.style.display = 'none'; }
   document.getElementById('deleteBtn').style.display = 'inline-block';
   document.getElementById('duplicateBtn').style.display = 'inline-block';
+  document.getElementById('moreDetailsSection').style.display = 'block';
+  document.getElementById('moreDetailsToggle').textContent = '– Hide details';
   renderPhotoPreviews();
   renderConditionsChips();
   renderWeatherChips();
@@ -1547,6 +1754,51 @@ function openEdit(id){
   drawStars();
   document.getElementById('editOverlay').classList.add('open');
 }
+
+document.getElementById('moreDetailsToggle').onclick = ()=>{
+  const sec = document.getElementById('moreDetailsSection');
+  const open = sec.style.display !== 'none';
+  sec.style.display = open ? 'none' : 'block';
+  document.getElementById('moreDetailsToggle').textContent = open ? '+ More details (distance, dates, photos, notes…)' : '– Hide details';
+};
+
+async function geocodeAddress(query){
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&q=${encodeURIComponent(query)}`);
+  const results = await res.json();
+  if(!results.length) return null;
+  const r = results[0];
+  const a = r.address || {};
+  const province = a.state || a.province || a.region || a.county || '';
+  return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), province, displayName: r.display_name };
+}
+
+document.getElementById('geocodeBtn').onclick = async ()=>{
+  const query = document.getElementById('f-address').value.trim();
+  const hint = document.getElementById('geocodeHint');
+  if(!query) return;
+  hint.style.display = 'block'; hint.textContent = 'Looking up…'; hint.style.cursor = 'default';
+  try{
+    const result = await geocodeAddress(query);
+    if(!result){ hint.textContent = 'No match found — try a more specific address.'; return; }
+    currentLat = result.lat; currentLng = result.lng;
+    if(!document.getElementById('f-region').value.trim() && result.province){
+      document.getElementById('f-region').value = result.province;
+    }
+    hint.textContent = `Found: ${result.displayName}`;
+  }catch(e){ hint.textContent = 'Lookup failed — check your connection.'; }
+};
+document.getElementById('startGeocodeBtn').onclick = async ()=>{
+  const query = document.getElementById('f-start-address').value.trim();
+  if(!query) return;
+  const btn = document.getElementById('startGeocodeBtn');
+  const original = btn.textContent;
+  btn.textContent = '…';
+  try{
+    const result = await geocodeAddress(query);
+    if(result){ currentStartLat = result.lat; currentStartLng = result.lng; }
+  }catch(e){ /* silent, non-critical field */ }
+  btn.textContent = original;
+};
 
 function closeEdit(){ document.getElementById('editOverlay').classList.remove('open'); }
 
@@ -1576,13 +1828,15 @@ async function saveHike(){
     name,
     region: document.getElementById('f-region').value.trim(),
     status: document.getElementById('f-status').value,
+    address: document.getElementById('f-address').value.trim() || null,
+    startAddress: document.getElementById('f-start-address').value.trim() || null,
     distance: parseFloat(document.getElementById('f-distance').value) || null,
     elevation: parseInt(document.getElementById('f-elevation').value) || null,
     difficulty: document.getElementById('f-difficulty').value,
     dateStart: isWishlist ? null : (document.getElementById('f-date-start').value || null),
     dateEnd: isWishlist ? null : (document.getElementById('f-date-end').value || null),
-    lat: document.getElementById('f-lat').value ? parseFloat(document.getElementById('f-lat').value) : null,
-    lng: document.getElementById('f-lng').value ? parseFloat(document.getElementById('f-lng').value) : null,
+    lat: currentLat, lng: currentLng,
+    startLat: currentStartLat, startLng: currentStartLng,
     companions: document.getElementById('f-companions').value.trim(),
     photos: currentPhotos,
     gpxElevations: currentGpx,
