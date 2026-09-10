@@ -676,6 +676,7 @@ body.dark .badge-done{background:#213329;}
 }
 .fab{ display:none; }
 .tabbar{ display:none; }
+.mobile-map{ display:none; }
 
 /* ============================================================
    iOS mobile layer — sized for iPhone 15 (393×852 pt, 390×844)
@@ -856,6 +857,23 @@ body.dark .badge-done{background:#213329;}
   .view-photo-strip img{ height:100px; }
   .star-picker{ font-size:34px; gap:8px; }
   .suggest-hint{ font-size:13px; }
+
+  /* --- fullscreen map page (Map tab) --- */
+  .mobile-map{
+    display:none;
+    position:fixed; inset:0; z-index:45;
+    background:var(--bg);
+  }
+  .mobile-map.open{ display:block; animation:mapFade 200ms ease; }
+  @keyframes mapFade{ from{ opacity:0; } to{ opacity:1; } }
+  .mobile-map .map-wrap{
+    position:absolute;
+    top:0; left:0; right:0;
+    bottom:calc(62px + env(safe-area-inset-bottom));
+    height:auto; margin:0; border:none; border-radius:0;
+  }
+
+  body.map-open .fab{ display:none; }
 
   /* --- accessibility: shrink/heavy-motion respect --- */
   @media(prefers-reduced-motion: reduce){
@@ -1100,23 +1118,20 @@ body.dark .badge-done{background:#213329;}
   </div>
 </div>
 
+<!-- Mobile fullscreen map page (≤640px only, opened from the Map tab) -->
+<div class="mobile-map" id="mobileMapPage" role="region" aria-label="Full screen map">
+  <div class="map-wrap" id="mobilePinsMap"></div>
+</div>
+
 <!-- Mobile bottom tab bar (shown ≤640px only) -->
 <nav class="tabbar" id="tabbar" aria-label="Main navigation">
-  <button data-nav="grid" class="active">
+  <button data-nav="hikes" class="active">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>
     <span>Hikes</span>
-  </button>
-  <button data-nav="list">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="0.9" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="0.9" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="0.9" fill="currentColor" stroke="none"/></svg>
-    <span>List</span>
   </button>
   <button data-nav="map">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
     <span>Map</span>
-  </button>
-  <button data-nav="plan">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>
-    <span>Plan</span>
   </button>
   <button data-nav="settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1292,34 +1307,37 @@ function renderTabs(){
 }
 
 /* ---------- mobile bottom tab bar ---------- */
-const VIEW_FALLBACK = { grid:'list', list:'grid', map:'list' };
 function updateTabbar(){
+  const mapOpen = document.getElementById('mobileMapPage').classList.contains('open');
+  const settingsOpen = document.getElementById('settingsOverlay').classList.contains('open');
   document.querySelectorAll('#tabbar button').forEach(btn=>{
     const nav = btn.dataset.nav;
     let active = false;
-    if(nav === 'settings'){ active = document.getElementById('settingsOverlay').classList.contains('open'); }
-    else if(nav === 'map'){ active = currentView === 'map'; }
-    else { active = currentView === nav; }
+    if(nav === 'settings'){ active = settingsOpen; }
+    else if(nav === 'map'){ active = mapOpen; }
+    else { active = !mapOpen && !settingsOpen; }
     btn.classList.toggle('active', active);
   });
 }
+function openMobileMap(){
+  const page = document.getElementById('mobileMapPage');
+  if(page.classList.contains('open')) return;
+  page.classList.add('open');
+  document.body.classList.add('map-open');
+  window.scrollTo(0, 0);
+  renderPinsMap(getFiltered(), 'mobilePinsMap');
+  updateTabbar();
+}
+function closeMobileMap(){
+  document.getElementById('mobileMapPage').classList.remove('open');
+  document.body.classList.remove('map-open');
+  if(_pinsMapInstance){ _pinsMapInstance.remove(); _pinsMapInstance = null; }
+  updateTabbar();
+}
 function gotoMobileView(nav){
-  if(nav === 'settings'){ openSettings(); updateTabbar(); return; }
-  if(nav === 'map' && !settings.views.map){
-    settings.views.map = true;
-    saveSettings().then(()=>{ loadData(); });
-    return;
-  }
-  if((nav === 'grid' && !settings.views.grid) || (nav === 'list' && !settings.views.list)){
-    const fallback = VIEW_FALLBACK[nav];
-    if(settings.views[fallback] || fallback === 'plan'){ currentView = fallback; }
-    else { currentView = 'plan'; }
-    render(); renderTabs();
-    return;
-  }
-  currentView = nav;
-  render();
-  renderTabs();
+  if(nav === 'map'){ openMobileMap(); return; }
+  closeMobileMap();
+  if(nav === 'settings'){ openSettings(); return; }
 }
 document.querySelectorAll('#tabbar button').forEach(btn=>{
   btn.addEventListener('click', ()=> gotoMobileView(btn.dataset.nav));
@@ -1512,8 +1530,8 @@ function renderMapLinks(content, list){
 }
 
 let _pinsMapInstance = null;
-function renderPinsMap(list){
-  const el = document.getElementById('pinsMap');
+function renderPinsMap(list, targetId = 'pinsMap'){
+  const el = document.getElementById(targetId);
   if(!el) return;
   if(_pinsMapInstance){ _pinsMapInstance.remove(); _pinsMapInstance = null; }
   const withCoords = list.filter(h=>h.lat!=null && h.lng!=null);
@@ -1539,7 +1557,7 @@ function renderPinsMap(list){
     const popupHtml = `
       <div class="map-popup">
         <p class="name">${esc(h.name)}</p>
-        <div class="stats">${fmtDistance(h.distance)} · ${fmtElevation(h.elevation)}</div>
+        <div class="stats">${fmtDistance(h.distance)} · ${fmtElevation(h.elevation)}${h.status ? ' · ' + h.status : ''}</div>
         <button onclick="openView('${h.id}')">View details</button>
       </div>
     `;
@@ -2294,6 +2312,7 @@ document.getElementById('viewOverlay').addEventListener('click', e=>{ if(e.targe
 
 /* ---------- settings modal ---------- */
 function openSettings(){
+  closeMobileMap();
   document.getElementById('viewGrid').checked = !!settings.views.grid;
   document.getElementById('viewList').checked = !!settings.views.list;
   document.getElementById('viewMap').checked = !!settings.views.map;
@@ -2361,7 +2380,7 @@ if('serviceWorker' in navigator){
 
   document.addEventListener('touchstart', (e)=>{
     if(refreshing || e.touches.length !== 1) return;
-    if(e.target.closest('.map-wrap, .overlay, input, textarea, select, button')) return;
+    if(e.target.closest('.map-wrap, .mobile-map, .overlay, input, textarea, select, button')) return;
     if(window.scrollY <= 0){
       startY = e.touches[0].clientY;
       pulling = true;
