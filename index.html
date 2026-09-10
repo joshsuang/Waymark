@@ -256,6 +256,34 @@ body.dark .leaflet-tile-pane{ filter: invert(92%) hue-rotate(180deg) brightness(
 }
 .plan-day textarea{ min-height:60px; resize:vertical; flex:1; }
 
+/* ---------- plan tab: week strip & tap-to-schedule ---------- */
+.plan-weekbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+.plan-weeklabel{ font-family:var(--font-display); font-weight:600; font-size:16px; color:var(--pine-deep); }
+.plan-nav{ width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+.plan-nav svg{ width:18px; height:18px; }
+.plan-weekstrip{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:16px; }
+.plan-day-cell{
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  padding:8px 2px; min-height:52px;
+  background:var(--surface); border:1px solid var(--line); border-radius:10px;
+  cursor:pointer; font-family:var(--font-body);
+}
+.plan-day-cell:hover{ border-color:var(--pine); }
+.plan-day-cell.today{ background:var(--pine); border-color:var(--pine); }
+.plan-day-cell.today .pcell-dow, .plan-day-cell.today .pcell-num{ color:#fff; }
+.pcell-dow{ font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); font-weight:600; }
+.pcell-num{ font-family:var(--font-mono); font-size:15px; font-weight:700; color:var(--pine-deep); line-height:1; }
+.pcell-dot{ width:4px; height:4px; border-radius:50%; background:transparent; }
+.plan-day-cell.hasplans .pcell-dot{ background:var(--gold); }
+.plan-day-cell.today.hasplans .pcell-dot{ background:#fff; }
+.plan-unscheduled{ margin-bottom:16px; }
+.plan-unscheduled-label{ font-size:12px; color:var(--ink-soft); margin-bottom:8px; }
+.plan-chips{ display:flex; gap:8px; flex-wrap:wrap; }
+.plan-chip.selected{ background:var(--gold); border-color:var(--gold); color:#fff; }
+.plan-day.assignable{ border-color:var(--pine); border-style:dashed; cursor:pointer; box-shadow:0 0 0 3px rgba(60,90,69,0.12); }
+.plan-day.pulse{ animation:planPulse 900ms ease; }
+@keyframes planPulse{ 0%{ box-shadow:0 0 0 0 rgba(60,90,69,0.35);} 100%{ box-shadow:0 0 0 12px rgba(60,90,69,0);} }
+
 /* ---------- stats bar ---------- */
 .stats-bar{
   display:grid;
@@ -714,9 +742,19 @@ body.dark .badge-done{background:#213329;}
   .map-wrap{ height:280px; border-radius:14px; }
   .map-link-row{ padding:16px 14px; min-height:60px; }
   .plan-grid{ grid-template-columns:1fr; gap:12px; }
-  .plan-day{ min-height:auto; padding:14px; }
-  .plan-day select, .plan-day textarea{ font-size:16px; min-height:44px; }
-  .plan-day textarea{ min-height:72px; }
+  .plan-day{ min-height:auto; padding:14px; border-radius:14px; }
+  .plan-day.today{ border-color:var(--pine); box-shadow:0 0 0 2px rgba(60,90,69,0.15); }
+  .plan-day select, .plan-day textarea{ font-size:16px; min-height:48px; }
+  .plan-day textarea{ min-height:88px; padding-top:12px; }
+  .plan-weekstrip{ gap:7px; margin-bottom:18px; position:sticky; top:0; z-index:30; padding:8px 0; background:var(--bg); }
+  .plan-day-cell{ min-height:64px; padding:10px 2px; border-radius:12px; }
+  .pcell-num{ font-size:17px; }
+  .pcell-dow{ font-size:11px; }
+  .plan-day-cell:active{ transform:scale(0.95); transition:transform 90ms ease; }
+  .plan-weeklabel{ font-size:17px; }
+  .plan-nav{ width:44px; height:44px; }
+  .plan-nav:active{ transform:scale(0.94); transition:transform 90ms ease; }
+  .plan-unscheduled-label{ font-size:13px; }
 
   /* --- forms: 16px type = no auto-zoom, rounded iOS inputs --- */
   .field label{ font-size:12.5px; margin-bottom:7px; }
@@ -1553,41 +1591,149 @@ async function renderPlanView(container){
   container.innerHTML = `<div class="empty"><h3>Loading plan…</h3></div>`;
   await loadPlanWeek();
   const days = [];
+  const todayIso = fmtISO(new Date());
   for(let i=0;i<7;i++){ const d = new Date(planWeekStart); d.setDate(d.getDate()+i); days.push(d); }
   const weekLabel = `${days[0].toLocaleDateString(undefined,{month:'short',day:'numeric'})} – ${days[6].toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}`;
+  const assignedThisWeek = new Set(Object.values(planData).map(r=>r.hike_id).filter(Boolean));
+  const unscheduled = hikes.filter(h=>!h.dateStart && !assignedThisWeek.has(h.id));
+  const dayInitials = ['M','T','W','T','F','S','S'];
 
   container.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
-      <button class="btn" id="planPrevWeek">‹ Prev week</button>
-      <div class="list-name" style="font-size:16px;">${weekLabel}</div>
-      <button class="btn" id="planNextWeek">Next week ›</button>
+    <div class="plan-weekbar">
+      <button class="btn icon-btn plan-nav" id="planPrevWeek" aria-label="Previous week">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="plan-weeklabel">${weekLabel}</div>
+      <button class="btn icon-btn plan-nav" id="planNextWeek" aria-label="Next week">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
     </div>
-    <div class="plan-grid">
+    <div class="plan-weekstrip" id="planWeekStrip" role="tablist" aria-label="Pick a day">
+      ${days.map((d,i)=>{
+        const iso = fmtISO(d);
+        const entry = planData[iso] || {};
+        const planned = !!(entry.hike_id || entry.camp_note);
+        return `
+          <button class="plan-day-cell${iso===todayIso?' today':''}${planned?' hasplans':''}" data-date="${iso}" role="tab" aria-label="${d.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'})}${planned?', planned':''}">
+            <span class="pcell-dow">${dayInitials[i]}</span>
+            <span class="pcell-num">${d.getDate()}</span>
+            <span class="pcell-dot"></span>
+          </button>`;
+      }).join('')}
+    </div>
+    ${unscheduled.length ? `
+    <div class="plan-unscheduled">
+      <div class="plan-unscheduled-label" id="planAssignHint">Tap a hike, then tap a day to schedule it</div>
+      <div class="plan-chips" id="planChips">
+        ${unscheduled.map(h=>`<button class="chip plan-chip" data-hike-id="${h.id}">${esc(h.name)}</button>`).join('')}
+      </div>
+    </div>` : ''}
+    <div class="plan-grid" id="planGrid">
       ${days.map(d=>{
         const iso = fmtISO(d);
         const entry = planData[iso] || {};
-        const dayLabel = d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+        const dayLabel = d.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'}) + (iso===todayIso ? ' · today' : '');
+        const hike = entry.hike_id ? hikes.find(h=>h.id===entry.hike_id) : null;
         return `
-          <div class="plan-day">
+          <div class="plan-day${iso===todayIso?' today':''}" data-date="${iso}">
             <div class="plan-day-date">${dayLabel}</div>
-            <select data-date="${iso}" class="plan-hike-select">
+            <select data-date="${iso}" class="plan-hike-select" aria-label="Hike for ${dayLabel}">
               <option value="">— no hike —</option>
               ${hikes.map(h=>`<option value="${h.id}" ${entry.hike_id===h.id?'selected':''}>${esc(h.name)}</option>`).join('')}
             </select>
-            <textarea data-date="${iso}" class="plan-camp-note" placeholder="Camping / stay notes…">${esc(entry.camp_note||'')}</textarea>
+            <textarea data-date="${iso}" class="plan-camp-note" placeholder="Camping / stay notes…" aria-label="Notes for ${dayLabel}">${esc(entry.camp_note||'')}</textarea>
           </div>
         `;
       }).join('')}
     </div>
   `;
-  document.getElementById('planPrevWeek').onclick = ()=>{ planWeekStart.setDate(planWeekStart.getDate()-7); renderPlanView(container); };
-  document.getElementById('planNextWeek').onclick = ()=>{ planWeekStart.setDate(planWeekStart.getDate()+7); renderPlanView(container); };
+
+  const gotoWeek = (delta)=>{
+    planWeekStart.setDate(planWeekStart.getDate()+delta*7);
+    clearAssignMode();
+    renderPlanView(container);
+  };
+  document.getElementById('planPrevWeek').onclick = ()=> gotoWeek(-1);
+  document.getElementById('planNextWeek').onclick = ()=> gotoWeek(1);
+
   container.querySelectorAll('.plan-hike-select').forEach(sel=>{
-    sel.onchange = ()=> savePlanDay(sel.dataset.date, sel.value, (planData[sel.dataset.date]||{}).camp_note);
+    sel.onchange = ()=>{
+      savePlanDay(sel.dataset.date, sel.value, (planData[sel.dataset.date]||{}).camp_note);
+      refreshStripDots();
+    };
   });
   container.querySelectorAll('.plan-camp-note').forEach(ta=>{
-    ta.onblur = ()=> savePlanDay(ta.dataset.date, (planData[ta.dataset.date]||{}).hike_id, ta.value);
+    ta.onblur = ()=>{
+      savePlanDay(ta.dataset.date, (planData[ta.dataset.date]||{}).hike_id, ta.value);
+      refreshStripDots();
+    };
   });
+
+  /* day-picker: scroll to the tapped day's card */
+  container.querySelectorAll('.plan-day-cell').forEach(cell=>{
+    cell.onclick = ()=>{
+      const card = container.querySelector(`.plan-day[data-date="${cell.dataset.date}"]`);
+      if(!card) return;
+      card.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      card.classList.remove('pulse');
+      void card.offsetWidth; // restart animation
+      card.classList.add('pulse');
+    };
+  });
+
+  /* swipe between weeks on the strip */
+  let swipeX = null;
+  const strip = document.getElementById('planWeekStrip');
+  strip.addEventListener('touchstart', e=>{ swipeX = e.touches[0].clientX; }, { passive:true });
+  strip.addEventListener('touchend', e=>{
+    if(swipeX === null) return;
+    const dx = e.changedTouches[0].clientX - swipeX;
+    if(Math.abs(dx) > 48) gotoWeek(dx < 0 ? 1 : -1);
+    swipeX = null;
+  }, { passive:true });
+
+  /* tap-to-schedule: pick a hike chip, then tap a day card */
+  let assignHikeId = null;
+  const hint = document.getElementById('planAssignHint');
+  function clearAssignMode(){
+    assignHikeId = null;
+    container.querySelectorAll('.plan-chip.selected').forEach(c=>c.classList.remove('selected'));
+    container.querySelectorAll('.plan-day.assignable').forEach(c=>c.classList.remove('assignable'));
+    if(hint) hint.textContent = 'Tap a hike, then tap a day to schedule it';
+  }
+  container.querySelectorAll('.plan-chip').forEach(chip=>{
+    chip.onclick = ()=>{
+      if(assignHikeId === chip.dataset.hikeId){ clearAssignMode(); return; }
+      clearAssignMode();
+      assignHikeId = chip.dataset.hikeId;
+      chip.classList.add('selected');
+      container.querySelectorAll('.plan-day').forEach(c=>c.classList.add('assignable'));
+      const name = chip.textContent;
+      if(hint) hint.textContent = `Assigning “${name}” — tap a day below (tap the hike again to cancel)`;
+    };
+  });
+  container.querySelectorAll('.plan-day').forEach(card=>{
+    card.onclick = (e)=>{
+      if(!assignHikeId || e.target.closest('select, textarea')) return;
+      const iso = card.dataset.date;
+      const prev = planData[iso] || {};
+      // update UI from local state immediately — no refetch, so it can't race the in-flight upsert
+      savePlanDay(iso, assignHikeId, prev.camp_note);
+      const sel = card.querySelector('.plan-hike-select');
+      if(sel) sel.value = assignHikeId;
+      refreshStripDots();
+      const h = hikes.find(x=>x.id===assignHikeId);
+      showToast(h ? `Scheduled ${h.name} on ${iso}` : 'Scheduled');
+      clearAssignMode();
+    };
+  });
+
+  function refreshStripDots(){
+    container.querySelectorAll('.plan-day-cell').forEach(cell=>{
+      const entry = planData[cell.dataset.date] || {};
+      cell.classList.toggle('hasplans', !!(entry.hike_id || entry.camp_note));
+    });
+  }
 }
 
 function renderTimeline(content, list){
