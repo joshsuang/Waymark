@@ -1696,12 +1696,17 @@ function renderPinsMap(list, targetId = 'pinsMap'){
   }).addTo(map);
 
   const pinClass = h => h.status==='Done' ? 'pin-done' : h.status==='Planned' ? 'pin-planned' : 'pin-wishlist';
+  const routeColor = h => h.status==='Done' ? '#3C5A45' : h.status==='Planned' ? '#A9791A' : '#5B6B79';
   const markers = [];
   withCoords.forEach(h=>{
     const icon = L.divIcon({ className:'', html:`<div class="map-pin ${pinClass(h)}"></div>`, iconSize:[16,16] });
     const marker = L.marker([h.lat, h.lng], { icon }).addTo(map);
     const g = gpxData(h.gpxElevations);
     const hasRoute = !!(g && g.route.length > 1);
+    /* GPX routes are always visible, dimmed in the hike's status color; clicking the pin highlights + zooms */
+    if(hasRoute){
+      L.polyline(g.route, { color: routeColor(h), weight:3, opacity:0.6, interactive:false }).addTo(map);
+    }
     const popupHtml = `
       <div class="map-popup">
         <p class="name">${esc(h.name)}</p>
@@ -2291,7 +2296,10 @@ async function updateGpxLocationFields(lat, lng){
   const coordsLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   const gainBit = (currentGpxSummary && currentGpxSummary.gain != null) ? ` — ${currentGpxSummary.gain} m of climbing` : '';
   const addrInput = document.getElementById('f-address');
+  const startInput = document.getElementById('f-start-address');
+  const startWasEmpty = !startInput.value.trim();
   if(!addrInput.value.trim()) addrInput.value = coordsLabel;
+  if(startWasEmpty) startInput.value = coordsLabel;
   lastAddressSuggestion = null;
   if(hint){
     hint.style.display = 'block';
@@ -2301,6 +2309,7 @@ async function updateGpxLocationFields(lat, lng){
     const rev = await reverseGeocode(lat, lng);
     if(rev){
       addrInput.value = rev.displayName;
+      if(startWasEmpty) startInput.value = rev.displayName;
       currentLat = rev.lat; currentLng = rev.lng;
       currentStartLat = rev.lat; currentStartLng = rev.lng;
       if(!document.getElementById('f-region').value.trim() && rev.province){
