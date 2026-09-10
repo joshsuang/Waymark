@@ -806,7 +806,16 @@ body.dark .badge-done{background:#213329;}
   }
   .tabbar button svg{ width:25px; height:25px; }
   .tabbar button.active{ color:var(--pine-deep); }
+  .tabbar button{ position:relative; }
   .tabbar button:active{ transform:scale(0.94); transition:transform 90ms ease; }
+  .tab-badge{
+    position:absolute; top:4px; right:calc(50% - 24px);
+    min-width:17px; height:17px; padding:0 5px;
+    border-radius:9px; background:var(--rust); color:#fff;
+    font-size:10.5px; font-weight:700; line-height:17px;
+    align-items:center; justify-content:center;
+    box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
 
   /* --- floating add button --- */
   .fab{
@@ -1128,6 +1137,7 @@ body.dark .badge-done{background:#213329;}
   <button data-nav="hikes" class="active">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>
     <span>Hikes</span>
+    <span class="tab-badge" id="tabPendingBadge" style="display:none;"></span>
   </button>
   <button data-nav="map">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
@@ -1146,6 +1156,95 @@ body.dark .badge-done{background:#213329;}
 const SUPABASE_URL = 'https://xrkeurkkurrgfyrhebtj.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhya2V1cmtrdXJyZ2Z5cmhlYnRqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcyMzM0MDUsImV4cCI6MjEwMjgwOTQwNX0.Jg-12Eumd0VObTKTpaoM635f_qOZt9iRM6Z3qn4pSVQ';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ---------- offline write queue ----------
+   Writes that fail because the device is offline are persisted to
+   localStorage and replayed automatically when connectivity returns.
+   Ops coalesce per target: hikes snapshot, settings, or one plan day —
+   each op carries complete state for its target, so only the latest
+   pending copy matters. Note: last-write-wins, so a pending local
+   snapshot replaces server rows for its target when it flushes. */
+const OFFLINE_QUEUE_KEY = 'waymark_offline_queue_v1';
+let offlineQueue = (function(){
+  try{ const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)); return Array.isArray(q) ? q : []; }
+  catch(e){ return []; }
+})();
+let _flushingQueue = false;
+
+function persistQueue(){
+  try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(offlineQueue)); }catch(e){}
+}
+function readCachedSnapshot(key){
+  try{ return JSON.parse(localStorage.getItem('waymark_cache_' + key + '_v1')); }catch(e){ return null; }
+}
+function persistCacheSnapshot(key, value){
+  try{ localStorage.setItem('waymark_cache_' + key + '_v1', JSON.stringify(value)); }catch(e){}
+}
+function enqueueOffline(op){
+  const idx = offlineQueue.findIndex(o => o.target === op.target && (op.target !== 'plan_day' || o.key === op.key));
+  if(idx >= 0) offlineQueue[idx] = op;
+  else offlineQueue.push(op);
+  persistQueue();
+  updateOfflineBadge();
+}
+function isOfflineError(err){
+  const msg = String((err && err.message) || err || '');
+  return /fetch|network|offline|Load failed|NetworkError/i.test(msg);
+}
+function updateOfflineBadge(){
+  const badge = document.getElementById('tabPendingBadge');
+  if(!badge) return;
+  const n = offlineQueue.length;
+  badge.textContent = n > 9 ? '9+' : String(n);
+  badge.style.display = n ? 'flex' : 'none';
+}
+async function flushOfflineQueue(){
+  if(_flushingQueue || !offlineQueue.length || !navigator.onLine) return 0;
+  _flushingQueue = true;
+  let synced = 0;
+  try{
+    while(offlineQueue.length){
+      const op = offlineQueue[0];
+      try{
+        if(op.target === 'hikes'){
+          const { error } = await sb.from('hikes').upsert(op.payload.rows);
+          if(error) throw error;
+          // same diff-delete as an online save: rows the snapshot no longer has get removed
+          const { data: existing, error: selErr } = await sb.from('hikes').select('id');
+          if(selErr) throw selErr;
+          const ids = new Set(op.payload.ids || op.payload.rows.map(r => r.id));
+          const toDelete = (existing || []).filter(r => !ids.has(r.id)).map(r => r.id);
+          if(toDelete.length){
+            const { error: delErr } = await sb.from('hikes').delete().in('id', toDelete);
+            if(delErr) throw delErr;
+          }
+        } else if(op.target === 'settings'){
+          const { error } = await sb.from('hikes_settings').upsert(op.payload);
+          if(error) throw error;
+        } else if(op.target === 'plan_day'){
+          const { error } = await sb.from('hikes_plan').upsert(op.payload);
+          if(error) throw error;
+        }
+        offlineQueue.shift();
+        persistQueue();
+        synced++;
+      }catch(err){
+        if(isOfflineError(err)) break; // still offline — retry on the next trigger
+        console.error('queued write failed permanently, dropping', op.target, err);
+        offlineQueue.shift();
+        persistQueue();
+      }
+    }
+  } finally {
+    _flushingQueue = false;
+    updateOfflineBadge();
+    if(synced) showToast(`Synced ${synced} offline change${synced === 1 ? '' : 's'}`);
+  }
+  return synced;
+}
+window.addEventListener('online', () => { flushOfflineQueue(); });
+document.addEventListener('visibilitychange', () => { if(!document.hidden) flushOfflineQueue(); });
+setInterval(() => { flushOfflineQueue(); }, 60000);
 
 function toRow(h){
   return {
@@ -1209,16 +1308,33 @@ async function loadData(){
     const { data, error } = await sb.from('hikes').select('*');
     if(error) throw error;
     hikes = (data||[]).map(fromRow);
+    persistCacheSnapshot('hikes', data);
   }catch(e){ console.error('load failed', e); loadFailed = true; }
+  const pendingHikesOp = offlineQueue.find(o=>o.target==='hikes');
   // Only seed on a genuinely empty database — never wipe existing hikes because a refresh failed.
-  if(hikes.length === 0 && !loadFailed){
+  if(hikes.length === 0 && !loadFailed && !pendingHikesOp){
     hikes = SEED_HIKES;
     await saveHikes();
   }
+  if(loadFailed && hikes.length === 0){
+    const cached = readCachedSnapshot('hikes');
+    if(cached && cached.length){ hikes = cached.map(fromRow); showToast('Offline — showing saved data'); }
+  }
   try{
     const { data } = await sb.from('hikes_settings').select('data').eq('id', 1).maybeSingle();
-    if(data && data.data) settings = { ...settings, ...data.data };
-  }catch(e){ /* use defaults */ }
+    if(data && data.data){ settings = { ...settings, ...data.data }; persistCacheSnapshot('settings', settings); }
+  }catch(e){
+    const cachedSettings = readCachedSnapshot('settings');
+    if(cachedSettings) settings = { ...settings, ...cachedSettings };
+  }
+  // pending offline edits are newer than what the server has — show them right away
+  if(pendingHikesOp && pendingHikesOp.payload && pendingHikesOp.payload.rows){
+    hikes = pendingHikesOp.payload.rows.map(fromRow);
+  }
+  const pendingSettingsOp = offlineQueue.find(o=>o.target==='settings');
+  if(pendingSettingsOp && pendingSettingsOp.payload && pendingSettingsOp.payload.data){
+    settings = { ...settings, ...pendingSettingsOp.payload.data };
+  }
   applyTheme();
   const enabledViews = Object.keys(settings.views).filter(v=>settings.views[v]);
   if(!enabledViews.includes(currentView)) currentView = enabledViews[0] || 'grid';
@@ -1226,6 +1342,7 @@ async function loadData(){
   renderPills();
   renderStats();
   render();
+  flushOfflineQueue();
 }
 
 function applyTheme(){ document.body.classList.toggle('dark', !!settings.dark); }
@@ -1275,15 +1392,41 @@ async function saveHikes(){
       const { error } = await sb.from('hikes').upsert(rows);
       if(error) throw error;
     }
-    const { data: existing } = await sb.from('hikes').select('id');
+    const { data: existing, error: selErr } = await sb.from('hikes').select('id');
+    if(selErr) throw selErr;
     const currentIds = new Set(hikes.map(h=>h.id));
     const toDelete = (existing||[]).filter(r=>!currentIds.has(r.id)).map(r=>r.id);
-    if(toDelete.length) await sb.from('hikes').delete().in('id', toDelete);
-  }catch(e){ console.error('save failed', e); }
+    if(toDelete.length){
+      const { error: delErr } = await sb.from('hikes').delete().in('id', toDelete);
+      if(delErr) throw delErr;
+    }
+    persistCacheSnapshot('hikes', hikes.map(toRow));
+    // direct write succeeded — a pending queued snapshot for this target is now stale
+    offlineQueue = offlineQueue.filter(o => o.target !== 'hikes');
+    persistQueue();
+    updateOfflineBadge();
+  }catch(e){
+    if(!isOfflineError(e)){ console.error('save failed', e); return; }
+    enqueueOffline({
+      target: 'hikes',
+      ts: Date.now(),
+      payload: { rows: hikes.map(toRow), ids: hikes.map(h=>h.id) }
+    });
+    showToast('Saved on this device — will sync when back online');
+  }
 }
 async function saveSettings(){
-  try{ await sb.from('hikes_settings').upsert({ id: 1, data: settings }); }
-  catch(e){ console.error('settings save failed', e); }
+  try{
+    const { error } = await sb.from('hikes_settings').upsert({ id: 1, data: settings });
+    if(error) throw error;
+    persistCacheSnapshot('settings', settings);
+    offlineQueue = offlineQueue.filter(o => o.target !== 'settings');
+    persistQueue();
+    updateOfflineBadge();
+  }catch(e){
+    if(!isOfflineError(e)){ console.error('settings save failed', e); return; }
+    enqueueOffline({ target: 'settings', ts: Date.now(), payload: { id: 1, data: settings } });
+  }
 }
 
 function renderTabs(){
@@ -1597,12 +1740,25 @@ async function loadPlanWeek(){
     planData = {};
     (data||[]).forEach(r=>{ planData[r.day_date] = r; });
   }catch(e){ console.error('plan load failed', e); planData = {}; }
+  // queued offline plan edits are the latest intent — overlay them on whatever we loaded
+  offlineQueue.filter(o=>o.target==='plan_day').forEach(op=>{ planData[op.key] = op.payload; });
 }
 
 async function savePlanDay(dateStr, hikeId, campNote){
   planData[dateStr] = { day_date: dateStr, hike_id: hikeId || null, camp_note: campNote || null };
-  try{ await sb.from('hikes_plan').upsert({ day_date: dateStr, hike_id: hikeId || null, camp_note: campNote || null }); }
-  catch(e){ console.error('plan save failed', e); }
+  try{
+    const { error } = await sb.from('hikes_plan').upsert({ day_date: dateStr, hike_id: hikeId || null, camp_note: campNote || null });
+    if(error) throw error;
+    offlineQueue = offlineQueue.filter(o => !(o.target === 'plan_day' && o.key === dateStr));
+    persistQueue();
+    updateOfflineBadge();
+  }catch(e){
+    if(!isOfflineError(e)){ console.error('plan save failed', e); return; }
+    enqueueOffline({
+      target: 'plan_day', key: dateStr, ts: Date.now(),
+      payload: { day_date: dateStr, hike_id: hikeId || null, camp_note: campNote || null }
+    });
+  }
 }
 
 async function renderPlanView(container){
