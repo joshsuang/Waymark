@@ -1706,11 +1706,14 @@ function renderPinsMap(list, targetId = 'pinsMap'){
       <div class="map-popup">
         <p class="name">${esc(h.name)}</p>
         <div class="stats">${fmtDistance(h.distance)} · ${fmtElevation(h.elevation)}${h.status ? ' · ' + h.status : ''}</div>
-        ${hasRoute ? `<button class="popup-route-btn" onclick="showRouteOnMap('${h.id}')">Show route</button>` : ''}
         <button onclick="openView('${h.id}')">View details</button>
       </div>
     `;
     marker.bindPopup(popupHtml);
+    /* Route hikes show their trail automatically when the pin is clicked */
+    marker.on('click', ()=>{
+      if(hasRoute) showRouteOnMap(h.id, true);
+    });
     markers.push(marker);
   });
 
@@ -1723,7 +1726,7 @@ function renderPinsMap(list, targetId = 'pinsMap'){
 }
 
 /* ---------- GPX route display on maps ---------- */
-function showRouteOnMap(hikeId){
+function showRouteOnMap(hikeId, keepPopup){
   const h = hikes.find(x=>x.id===hikeId);
   if(!h) return;
   const g = gpxData(h.gpxElevations);
@@ -1734,20 +1737,19 @@ function showRouteOnMap(hikeId){
   if(GPX_ROUTE && GPX_ROUTE.mapId !== activeId){ clearRouteFromMap(); }
   const target = document.getElementById(activeId);
   if(!target || !_pinsMapInstance) return;
-  if(!GPX_ROUTE){
+  if(!GPX_ROUTE || GPX_ROUTE.hikeId !== hikeId){
+    if(GPX_ROUTE){ clearRouteFromMap(); }
     const line = L.polyline(g.route, { color:'#A9791A', weight:4, opacity:0.9 }).addTo(_pinsMapInstance);
     line.bringToFront();
     const endCap = L.circleMarker(g.route[g.route.length-1], {
       radius:5, color:'#A9791A', weight:2, fillColor:'#A9791A', fillOpacity:1
     }).addTo(_pinsMapInstance);
     GPX_ROUTE = { mapId: activeId, layer: line, cap: endCap, hikeId };
-  } else {
-    GPX_ROUTE.layer.setLatLngs(g.route);
-    GPX_ROUTE.cap.setLatLng(g.route[g.route.length-1]);
-    GPX_ROUTE.hikeId = hikeId;
+    _pinsMapInstance.fitBounds(GPX_ROUTE.layer.getBounds(), { padding: [40, 40] });
+    if(!keepPopup){ _pinsMapInstance.closePopup(); }
+  } else if(!keepPopup){
+    _pinsMapInstance.closePopup();
   }
-  _pinsMapInstance.fitBounds(GPX_ROUTE.layer.getBounds(), { padding: [40, 40] });
-  _pinsMapInstance.closePopup();
 }
 function clearRouteFromMap(){
   if(GPX_ROUTE && _pinsMapInstance){
