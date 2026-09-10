@@ -2178,6 +2178,20 @@ function downsamplePairs(pairs, target){
   for(let i=0;i<target;i++) out.push(pairs[Math.floor(i*step)]);
   return out;
 }
+/* Total gain from a track: sum positive elevation deltas.
+   A 10 m hysteresis swallows GPS noise/barometer jitter so rolling terrain
+   and signal wobble don't inflate the number. Returns null when no elevations. */
+function totalElevationGain(eles){
+  if(!Array.isArray(eles) || eles.length < 2) return null;
+  const MIN_STEP = 10;
+  let gain = 0, ref = eles[0];
+  for(let i=1;i<eles.length;i++){
+    const e = eles[i];
+    if(e > ref + MIN_STEP){ gain += e - ref; ref = e; }
+    else if(e < ref - MIN_STEP){ ref = e; }
+  }
+  return gain > 0 ? Math.round(gain) : null;
+}
 function parseGpx(text){
   const doc = new DOMParser().parseFromString(text, 'text/xml');
   const readPoints = tagName => {
@@ -2198,20 +2212,20 @@ function parseGpx(text){
   if(pts.length === 0){
     // legacy: bare <ele> list without coordinates
     const eles = Array.from(doc.getElementsByTagName('ele')).map(n=>parseFloat(n.textContent)).filter(n=>!isNaN(n));
-    return eles.length ? { ele: downsampleArr(eles, 40), route: [] } : null;
+    return eles.length ? { ele: downsampleArr(eles, 40), route: [], gain: totalElevationGain(eles) } : null;
   }
   const route = downsamplePairs(pts.map(p=>[p.lat, p.lon]), 800);
   const eles = pts.map(p=>p.ele).filter(e=>e!=null);
-  return { ele: eles.length ? downsampleArr(eles, 40) : [], route };
+  return { ele: eles.length ? downsampleArr(eles, 40) : [], route, gain: totalElevationGain(eles) };
 }
 /* gpxElevations may hold a legacy elevation array or the newer {ele, route} object */
 function gpxData(v){
   if(!v) return null;
-  if(Array.isArray(v)) return { ele: v, route: [] };
+  if(Array.isArray(v)) return { ele: v, route: [], gain: totalElevationGain(v) };
   if(typeof v === 'object'){
     const ele = Array.isArray(v.ele) ? v.ele : [];
     const route = Array.isArray(v.route) ? v.route.filter(p => Array.isArray(p) && p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])) : [];
-    if(ele.length || route.length) return { ele, route };
+    if(ele.length || route.length) return { ele, route, gain: (typeof v.gain === 'number' && !isNaN(v.gain)) ? v.gain : totalElevationGain(ele) };
   }
   return null;
 }
@@ -2223,6 +2237,7 @@ document.getElementById('f-gpx').addEventListener('change', e=>{
     const points = parseGpx(reader.result);
     if(points){
       currentGpx = points;
+      currentGpxSummary = computeGpxSummary(points);
       const svg = document.getElementById('gpxPreview');
       if(points.ele.length){
         svg.outerHTML = sparklineSvg(points.ele).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"');
@@ -2232,6 +2247,10 @@ document.getElementById('f-gpx').addEventListener('change', e=>{
         const bits = [];
         if(points.route.length) bits.push(`route with ${points.route.length} points — it will show on the map`);
         if(points.ele.length) bits.push('elevation profile');
+        if(currentGpxSummary && currentGpxSummary.gain != null){
+          bits.push(`${currentGpxSummary.gain} m of climbing`);
+        }
+        if(maybeAutoFillElevation(currentGpxSummary)) bits.push('elevation auto-filled');
         hint.style.display = 'block';
         hint.textContent = 'Added: ' + bits.join(' + ');
       }
@@ -2248,9 +2267,27 @@ document.getElementById('f-gpx').addEventListener('change', e=>{
 });
 
 /* On GPX upload: put the pin on the route's start point and reverse-geocode it to fill address/region. */
+/* Summarize the current GPX for auto-fill decisions; invalid/missing data yields null. */
+function computeGpxSummary(v){
+  const g = gpxData(v);
+  if(!g || (!g.ele.length && !g.route.length)) return null;
+  const start = g.route.length ? g.route[0] : null;
+  return { gain: totalElevationGain(g.ele), hasElev: g.ele.length > 0, hasRoute: g.route.length > 0, start };
+}
+let currentGpxSummary = null;
+/* Elevation-gain auto-fill: only when the user hasn't typed a value, so manual entries always win. */
+function maybeAutoFillElevation(summary){
+  if(!summary || summary.gain == null) return false;
+  const el = document.getElementById('f-elevation');
+  if(!el || el.value.trim() !== '') return false;
+  el.value = summary.gain;
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
 async function updateGpxLocationFields(lat, lng){
   const hint = document.getElementById('gpxHint');
   const coordsLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  const gainBit = (currentGpxSummary && currentGpxSummary.gain != null) ? ` — ${currentGpxSummary.gain} m of climbing` : '';
   const addrInput = document.getElementById('f-address');
   if(!addrInput.value.trim()) addrInput.value = coordsLabel;
   lastAddressSuggestion = null;
@@ -2268,15 +2305,15 @@ async function updateGpxLocationFields(lat, lng){
         document.getElementById('f-region').value = rev.province;
       }
       if(hint){
-        hint.textContent = `Location set from GPX start: ${rev.displayName}`;
+        hint.textContent = `Location set from GPX start: ${rev.displayName}${gainBit}`;
       }
     } else if(hint){
-      hint.textContent = `Location set from GPX start: ${coordsLabel}`;
+      hint.textContent = `Location set from GPX start: ${coordsLabel}${gainBit}`;
     }
   }catch(e){
     /* Offline or reverse lookup failed — coordinates remain set and saved */
     if(hint){
-      hint.textContent = `Location set from GPX start: ${coordsLabel}`;
+      hint.textContent = `Location set from GPX start: ${coordsLabel}${gainBit}`;
     }
   }
 }
@@ -2370,6 +2407,7 @@ function openAdd(){
   currentWeather = null;
   currentLat = null; currentLng = null; currentStartLat = null; currentStartLng = null;
   lastAddressSuggestion = null;
+  currentGpxSummary = null;
   document.getElementById('editTitle').textContent = 'Add a hike';
   document.getElementById('f-name').value = '';
   document.getElementById('f-region').value = '';
@@ -2438,6 +2476,7 @@ function openEdit(id){
   const g = gpxData(currentGpx);
   if(g && g.ele.length){ gpxSvg.outerHTML = sparklineSvg(g.ele).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"'); }
   else { gpxSvg.style.display = 'none'; }
+  currentGpxSummary = computeGpxSummary(currentGpx);
   document.getElementById('deleteBtn').style.display = 'inline-block';
   document.getElementById('duplicateBtn').style.display = 'inline-block';
   document.getElementById('moreDetailsSection').style.display = 'block';
