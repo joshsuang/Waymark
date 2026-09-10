@@ -1051,8 +1051,9 @@ body.dark .badge-done{background:#213329;}
       </div>
       <div class="field">
         <label for="f-gpx">GPX file (elevation profile)</label>
-        <input type="file" id="f-gpx" accept=".gpx">
+        <input type="file" accept=".gpx" id="f-gpx">
         <svg id="gpxPreview" class="sparkline" width="100%" height="40" style="display:none;"></svg>
+        <div class="suggest-hint" id="gpxHint" style="display:none;"></div>
       </div>
       <div class="field" id="ratingField" style="display:none;">
         <label>Rating</label>
@@ -1673,10 +1674,12 @@ function renderMapLinks(content, list){
 }
 
 let _pinsMapInstance = null;
+let GPX_ROUTE = null;
 function renderPinsMap(list, targetId = 'pinsMap'){
   const el = document.getElementById(targetId);
   if(!el) return;
   if(_pinsMapInstance){ _pinsMapInstance.remove(); _pinsMapInstance = null; }
+  GPX_ROUTE = null;
   const withCoords = list.filter(h=>h.lat!=null && h.lng!=null);
   if(typeof L === 'undefined'){
     el.innerHTML = '<div class="empty" style="padding:40px 20px;"><h3>Map library didn&rsquo;t load</h3><p>Check your connection and reload.</p></div>';
@@ -1697,10 +1700,13 @@ function renderPinsMap(list, targetId = 'pinsMap'){
   withCoords.forEach(h=>{
     const icon = L.divIcon({ className:'', html:`<div class="map-pin ${pinClass(h)}"></div>`, iconSize:[16,16] });
     const marker = L.marker([h.lat, h.lng], { icon }).addTo(map);
+    const g = gpxData(h.gpxElevations);
+    const hasRoute = !!(g && g.route.length > 1);
     const popupHtml = `
       <div class="map-popup">
         <p class="name">${esc(h.name)}</p>
         <div class="stats">${fmtDistance(h.distance)} · ${fmtElevation(h.elevation)}${h.status ? ' · ' + h.status : ''}</div>
+        ${hasRoute ? `<button class="popup-route-btn" onclick="showRouteOnMap('${h.id}')">Show route</button>` : ''}
         <button onclick="openView('${h.id}')">View details</button>
       </div>
     `;
@@ -1714,6 +1720,41 @@ function renderPinsMap(list, targetId = 'pinsMap'){
     map.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
   }
   _pinsMapInstance = map;
+}
+
+/* ---------- GPX route display on maps ---------- */
+function showRouteOnMap(hikeId){
+  const h = hikes.find(x=>x.id===hikeId);
+  if(!h) return;
+  const g = gpxData(h.gpxElevations);
+  if(!g || g.route.length < 2) return;
+  // route belongs to whichever map is showing; the other one is stale — clear it
+  const activeIsMobile = document.getElementById('mobileMapPage').classList.contains('open');
+  const activeId = activeIsMobile ? 'mobilePinsMap' : 'pinsMap';
+  if(GPX_ROUTE && GPX_ROUTE.mapId !== activeId){ clearRouteFromMap(); }
+  const target = document.getElementById(activeId);
+  if(!target || !_pinsMapInstance) return;
+  if(!GPX_ROUTE){
+    const line = L.polyline(g.route, { color:'#A9791A', weight:4, opacity:0.9 }).addTo(_pinsMapInstance);
+    line.bringToFront();
+    const endCap = L.circleMarker(g.route[g.route.length-1], {
+      radius:5, color:'#A9791A', weight:2, fillColor:'#A9791A', fillOpacity:1
+    }).addTo(_pinsMapInstance);
+    GPX_ROUTE = { mapId: activeId, layer: line, cap: endCap, hikeId };
+  } else {
+    GPX_ROUTE.layer.setLatLngs(g.route);
+    GPX_ROUTE.cap.setLatLng(g.route[g.route.length-1]);
+    GPX_ROUTE.hikeId = hikeId;
+  }
+  _pinsMapInstance.fitBounds(GPX_ROUTE.layer.getBounds(), { padding: [40, 40] });
+  _pinsMapInstance.closePopup();
+}
+function clearRouteFromMap(){
+  if(GPX_ROUTE && _pinsMapInstance){
+    _pinsMapInstance.removeLayer(GPX_ROUTE.layer);
+    _pinsMapInstance.removeLayer(GPX_ROUTE.cap);
+  }
+  GPX_ROUTE = null;
 }
 
 /* ---------- plan tab ---------- */
@@ -2062,7 +2103,7 @@ function openView(id){
       </div>
     </div>
     ${h.photos && h.photos.length ? `<div class="view-photo-strip">${h.photos.map(p=>`<img src="${p}" onclick="openLightbox(this.src)">`).join('')}</div>` : ''}
-    ${h.gpxElevations && h.gpxElevations.length ? sparklineSvg(h.gpxElevations) : ''}
+    ${(() => { const g = gpxData(h.gpxElevations); return g && g.ele.length ? sparklineSvg(g.ele) : ''; })()}
     ${group('Overview', overview)}
     ${group('Trip details', details)}
     ${group('Links & rating', links)}
@@ -2123,17 +2164,56 @@ function sparklineSvg(points){
 }
 
 /* ---------- GPX parsing ---------- */
+function downsampleArr(arr, target){
+  if(arr.length <= target) return arr;
+  const out = [];
+  const step = arr.length / target;
+  for(let i=0;i<target;i++) out.push(arr[Math.floor(i*step)]);
+  return out;
+}
+function downsamplePairs(pairs, target){
+  if(pairs.length <= target) return pairs;
+  const out = [];
+  const step = pairs.length / target;
+  for(let i=0;i<target;i++) out.push(pairs[Math.floor(i*step)]);
+  return out;
+}
 function parseGpx(text){
   const doc = new DOMParser().parseFromString(text, 'text/xml');
-  const eles = Array.from(doc.getElementsByTagName('ele')).map(n=>parseFloat(n.textContent)).filter(n=>!isNaN(n));
-  if(eles.length === 0) return null;
-  // downsample to ~40 points
-  const target = 40;
-  if(eles.length <= target) return eles;
-  const out = [];
-  const step = eles.length / target;
-  for(let i=0;i<target;i++) out.push(eles[Math.floor(i*step)]);
-  return out;
+  const readPoints = tagName => {
+    const pts = [];
+    const nodes = doc.getElementsByTagName(tagName);
+    for(let i=0;i<nodes.length;i++){
+      const n = nodes[i];
+      const lat = parseFloat(n.getAttribute('lat')), lon = parseFloat(n.getAttribute('lon'));
+      if(isNaN(lat) || isNaN(lon)) continue;
+      let ele = null;
+      const eleEl = n.getElementsByTagName('ele')[0];
+      if(eleEl){ const v = parseFloat(eleEl.textContent); if(!isNaN(v)) ele = v; }
+      pts.push({ lat, lon, ele });
+    }
+    return pts;
+  };
+  const pts = readPoints('trkpt').length ? readPoints('trkpt') : readPoints('rtept');
+  if(pts.length === 0){
+    // legacy: bare <ele> list without coordinates
+    const eles = Array.from(doc.getElementsByTagName('ele')).map(n=>parseFloat(n.textContent)).filter(n=>!isNaN(n));
+    return eles.length ? { ele: downsampleArr(eles, 40), route: [] } : null;
+  }
+  const route = downsamplePairs(pts.map(p=>[p.lat, p.lon]), 800);
+  const eles = pts.map(p=>p.ele).filter(e=>e!=null);
+  return { ele: eles.length ? downsampleArr(eles, 40) : [], route };
+}
+/* gpxElevations may hold a legacy elevation array or the newer {ele, route} object */
+function gpxData(v){
+  if(!v) return null;
+  if(Array.isArray(v)) return { ele: v, route: [] };
+  if(typeof v === 'object'){
+    const ele = Array.isArray(v.ele) ? v.ele : [];
+    const route = Array.isArray(v.route) ? v.route.filter(p => Array.isArray(p) && p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])) : [];
+    if(ele.length || route.length) return { ele, route };
+  }
+  return null;
 }
 document.getElementById('f-gpx').addEventListener('change', e=>{
   const file = e.target.files[0];
@@ -2144,7 +2224,17 @@ document.getElementById('f-gpx').addEventListener('change', e=>{
     if(points){
       currentGpx = points;
       const svg = document.getElementById('gpxPreview');
-      svg.outerHTML = sparklineSvg(points).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"');
+      if(points.ele.length){
+        svg.outerHTML = sparklineSvg(points.ele).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"');
+      }
+      const hint = document.getElementById('gpxHint');
+      if(hint){
+        const bits = [];
+        if(points.route.length) bits.push(`route with ${points.route.length} points — it will show on the map`);
+        if(points.ele.length) bits.push('elevation profile');
+        hint.style.display = 'block';
+        hint.textContent = 'Added: ' + bits.join(' + ');
+      }
     }
   };
   reader.readAsText(file);
@@ -2304,7 +2394,8 @@ function openEdit(id){
   document.getElementById('f-notes').value = h.notes || '';
   document.getElementById('suggestHint').style.display = 'none';
   const gpxSvg = document.getElementById('gpxPreview');
-  if(currentGpx){ gpxSvg.outerHTML = sparklineSvg(currentGpx).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"'); }
+  const g = gpxData(currentGpx);
+  if(g && g.ele.length){ gpxSvg.outerHTML = sparklineSvg(g.ele).replace('class="sparkline"', 'id="gpxPreview" class="sparkline"'); }
   else { gpxSvg.style.display = 'none'; }
   document.getElementById('deleteBtn').style.display = 'inline-block';
   document.getElementById('duplicateBtn').style.display = 'inline-block';
