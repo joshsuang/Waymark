@@ -1,0 +1,16 @@
+{
+  "name": "Waymark — Nand's Hiking Log",
+  "short_name": "Waymark",
+  "description": "Personal hiking log: wishlist, planning, stats and maps.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF0E8",
+  "theme_color": "#263D2F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
