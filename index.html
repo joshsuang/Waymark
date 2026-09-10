@@ -2,6 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF0E8">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1B2620">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Waymark">
 <title>Waymark — Nand's Hiking Log</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23263D2F'/%3E%3Cpath d='M2 24 L11 10 L15 16 L20 7 L30 24 Z' fill='%23EEF0E8'/%3E%3Ccircle cx='23' cy='9' r='2.4' fill='%23A9791A'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -191,6 +198,8 @@ body.dark .leaflet-tile-pane{ filter: invert(92%) hue-rotate(180deg) brightness(
   font-size:11px; line-height:1; cursor:pointer;
 }
 .chip-group{display:flex; gap:6px; flex-wrap:wrap;}
+.view-row .v a{ color:var(--pine); font-weight:500; text-decoration:none; word-break:break-word; }
+.view-row .v a:hover{ text-decoration:underline; }
 .chip{
   border:1px solid var(--line);
   background:var(--bg);
@@ -611,36 +620,190 @@ body.dark .badge-done{background:#213329;}
 .star-picker{display:flex; gap:4px; font-size:22px; cursor:pointer; color:var(--line);}
 .star-picker span.filled{color:var(--gold);}
 .modal-actions{display:flex; justify-content:space-between; margin-top:20px; gap:10px;}
-
+/* iOS-style settings switch rows */
+.field label.switchbox{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  font-size:14px; font-weight:500; text-transform:none; letter-spacing:0;
+  color:var(--ink); cursor:pointer; padding:4px 0;
+}
+.field label.switchbox input{
+  appearance:none; -webkit-appearance:none;
+  width:50px; height:30px; border-radius:15px;
+  background:var(--line); position:relative; cursor:pointer; margin:0; flex-shrink:0;
+  transition:background 180ms ease; outline-offset:3px;
+}
+.switchbox input::after{
+  content:''; position:absolute; top:2px; left:2px; width:26px; height:26px; border-radius:50%;
+  background:#fff; box-shadow:0 1px 3px rgba(0,0,0,0.25);
+  transition:left 180ms ease;
+}
+.field label.switchbox input:checked{ background:#34C759; }
+.field label.switchbox input:checked::after{ left:22px; }
 @media(max-width:640px){
-  .topo{padding:20px 16px 16px;}
-  h1{font-size:24px;}
-  .toolbar{padding:10px 14px; flex-direction:column; align-items:stretch; gap:8px;}
-  .toolbar-group{justify-content:space-between;}
-  .search-input{width:100%; font-size:16px;}
-  .tabs{width:100%; overflow-x:auto;}
-  .tab-btn{flex:1; white-space:nowrap;}
-  .content{padding:14px 14px 90px;}
-  .stats-bar{grid-template-columns:repeat(2,1fr);}
-  .grid{grid-template-columns:1fr; gap:12px;}
-  .card{padding:14px;}
-  .list-row{grid-template-columns:1.4fr 0.8fr 0.8fr; padding:14px;}
-  .list-row span:nth-child(4), .list-row span:nth-child(5), .list-row span:nth-child(6){display:none;}
-  .list-header span:nth-child(4), .list-header span:nth-child(5), .list-header span:nth-child(6){display:none;}
-  .modal{max-width:100%; max-height:100vh; height:100vh; border-radius:0; padding:18px 16px 24px;}
-  .overlay{padding:0;}
-  .row-2{grid-template-columns:1fr;}
-  .field input, .field select, .field textarea{font-size:16px;}
-  .btn, .pill, .tab-btn{padding:10px 14px; font-size:13.5px;}
-  .modal-actions{flex-wrap:wrap;}
-  .modal-actions > div{width:100%; justify-content:stretch;}
-  .modal-actions > div button{flex:1;}
-  .timeline-date{width:64px; font-size:10.5px;}
-  .bulk-bar{flex-direction:column; align-items:stretch;}
-  .map-wrap{height:260px;}
-  .plan-grid{grid-template-columns:1fr; gap:12px;}
-  .plan-day{min-height:auto;}
-  .view-photo-strip img{height:96px;}
+  .field label.switchbox{ font-size:15.5px; padding:8px 0; }
+  .field label.switchbox input{ width:56px; height:34px; border-radius:17px; }
+  .field label.switchbox input::after{ width:30px; height:30px; }
+  .field label.switchbox input:checked::after{ left:24px; }
+}
+.fab{ display:none; }
+.tabbar{ display:none; }
+
+/* ============================================================
+   iOS mobile layer — sized for iPhone 15 (393×852 pt, 390×844)
+   ============================================================ */
+@media(max-width:640px){
+  /* --- base & touch targets: Apple HIG minimum 44×44pt --- */
+  body{ -webkit-text-size-adjust:100%; -webkit-tap-highlight-color:transparent; }
+  .pill{ padding:11px 16px; font-size:14px; border-radius:22px; }
+  .sort-pill{ padding:12px 10px; font-size:13.5px; }
+  .tab-btn{ padding:11px 14px; font-size:14.5px; }
+  .btn{ min-height:44px; padding:10px 18px; font-size:15.5px; }
+  .btn-primary{ min-height:48px; }
+  .chip{ padding:12px 16px; font-size:14px; border-radius:22px; min-height:44px; display:inline-flex; align-items:center; }
+  .icon-btn{ width:44px; height:44px; }
+  select, .btn, .tab-btn, .pill, .chip, .sort-pill, .icon-btn{
+    -webkit-appearance:none; appearance:none; touch-action:manipulation;
+    transition:background 120ms ease, transform 120ms ease;
+  }
+  select{ min-height:44px; padding:10px 30px 10px 12px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2356604F' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; }
+  select:active, .btn:active, .tab-btn:active, .pill:active, .chip:active{ transform:scale(0.97); }
+  select:active{ background-color:var(--bg); }
+
+  /* --- sticky top: header + search live inside the safe area --- */
+  .topo{ padding:calc(env(safe-area-inset-top) + 10px) 16px 14px; }
+  h1{ font-size:26px; }
+  .topo svg{ top:-60%; opacity:0.28; }
+  .toolbar{
+    position:static;
+    flex-direction:column; align-items:stretch; gap:9px;
+    padding:12px calc(env(safe-area-inset-right) + 14px) 12px calc(env(safe-area-inset-left) + 14px);
+    border-bottom:0.5px solid var(--line);
+  }
+  .toolbar-group{ display:contents; }
+  .search-row{ display:flex; gap:8px; align-items:center; }
+  .tabs{ overflow-x:auto; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .search-input{ flex:1; width:auto; min-width:0; font-size:16px; }
+  #settingsBtn{ width:44px; height:44px; padding:0; font-size:0; border-radius:10px; overflow:hidden; flex-shrink:0; }
+  #settingsBtn::before{ content:'⚙️'; font-size:18px; }
+  .pills{ flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .pills::-webkit-scrollbar{ display:none; }
+  .pill, .sort-pill{ flex-shrink:0; }
+  #selectBtn, #addBtn{ display:none; }
+
+  /* --- content: full-width sheet cards, bottom inset for tab bar --- */
+  .content{ padding:14px 14px calc(96px + env(safe-area-inset-bottom)); }
+  .stats-bar{ grid-template-columns:repeat(2,1fr); gap:0.5px; }
+  .grid, .grid.compact{ grid-template-columns:1fr; gap:12px; }
+  .card{ padding:16px; border-radius:14px; }
+  .card-name{ font-size:19px; }
+  .card-region{ font-size:13px; }
+  .card-stats{ font-size:14.5px; gap:18px; }
+  .card:active{ transform:scale(0.98); transition:transform 90ms ease; }
+  .list-row{ grid-template-columns:1.5fr 0.9fr 0.7fr; padding:14px 14px; min-height:60px; border-radius:12px; }
+  .list-row span:nth-child(4), .list-row span:nth-child(5), .list-row span:nth-child(6){ display:none; }
+  .list-header span:nth-child(4), .list-header span:nth-child(5), .list-header span:nth-child(6){ display:none; }
+  .list-row:active{ transform:scale(0.98); transition:transform 90ms ease; }
+  .timeline-item{ padding:14px 2px; }
+  .timeline-name{ font-size:16.5px; }
+  .timeline-meta{ font-size:13px; }
+  .timeline-date{ width:72px; font-size:11px; }
+  .map-wrap{ height:280px; border-radius:14px; }
+  .map-link-row{ padding:16px 14px; min-height:60px; }
+  .plan-grid{ grid-template-columns:1fr; gap:12px; }
+  .plan-day{ min-height:auto; padding:14px; }
+  .plan-day select, .plan-day textarea{ font-size:16px; min-height:44px; }
+  .plan-day textarea{ min-height:72px; }
+
+  /* --- forms: 16px type = no auto-zoom, rounded iOS inputs --- */
+  .field label{ font-size:12.5px; margin-bottom:7px; }
+  .field input, .field select, .field textarea{
+    font-size:16px; min-height:48px; padding:12px 14px;
+    border-radius:12px; -webkit-appearance:none; appearance:none;
+  }
+  .field textarea{ min-height:96px; padding-top:12px; }
+  .field input[type=file]{ min-height:44px; padding:10px 12px; }
+  .row-2{ grid-template-columns:1fr; }
+
+  /* --- modals become iOS sheets: slide up, grabber, rounded top --- */
+  .overlay{ align-items:flex-end; padding:0; }
+  .modal{
+    max-width:100%; max-height:92vh; height:auto; padding:12px 18px calc(20px + env(safe-area-inset-bottom));
+    border-radius:16px 16px 0 0;
+    box-shadow:0 -12px 48px rgba(32,43,34,0.25);
+    animation:sheetUp 360ms cubic-bezier(0.32, 0.72, 0, 1);
+    overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
+  }
+  @keyframes sheetUp{ from{ transform:translateY(100%); } to{ transform:translateY(0); } }
+  .modal::before{
+    content:''; display:block; width:38px; height:5px; border-radius:3px;
+    background:var(--line); margin:0 auto 14px;
+  }
+  .modal h2{ font-size:22px; }
+  .modal-actions{ flex-wrap:wrap; }
+  .modal-actions > div{ width:100%; justify-content:stretch; }
+  .modal-actions > div button{ flex:1; min-height:48px; }
+  #lightboxImg{ max-width:96vw; max-height:86vh; }
+
+  /* --- bottom tab bar --- */
+  .tabbar{
+    display:flex;
+    position:fixed; bottom:0; left:0; right:0; z-index:55;
+    background:color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter:saturate(180%) blur(16px);
+    backdrop-filter:saturate(180%) blur(16px);
+    border-top:0.5px solid var(--line);
+    padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .tabbar button{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+    padding:7px 2px; min-height:50px;
+    border:none; background:transparent; cursor:pointer;
+    font-family:var(--font-body); font-size:10.5px; font-weight:600;
+    color:var(--ink-soft); border-radius:10px;
+  }
+  .tabbar button svg{ width:25px; height:25px; }
+  .tabbar button.active{ color:var(--pine-deep); }
+  .tabbar button:active{ transform:scale(0.94); transition:transform 90ms ease; }
+
+  /* --- floating add button --- */
+  .fab{
+    display:flex; align-items:center; justify-content:center;
+    position:fixed; right:16px; z-index:56;
+    bottom:calc(72px + env(safe-area-inset-bottom));
+    width:54px; height:54px; border-radius:27px;
+    background:var(--pine); color:#fff;
+    box-shadow:0 6px 20px rgba(38,61,47,0.35);
+    border:none; cursor:pointer;
+  }
+  .fab:active{ transform:scale(0.94); transition:transform 90ms ease; }
+  .fab svg{ width:26px; height:26px; }
+
+  /* --- bulk bar above the tab bar --- */
+  .bulk-bar{
+    flex-direction:row; flex-wrap:wrap; align-items:center;
+    bottom:calc(62px + env(safe-area-inset-bottom));
+    left:10px; right:10px; border-radius:14px;
+    padding:12px 16px; box-shadow:0 8px 30px rgba(0,0,0,0.3);
+  }
+
+  /* --- toast clears the tab bar --- */
+  .toast{ bottom:calc(78px + env(safe-area-inset-bottom)); max-width:88vw; }
+
+  /* --- detail rows more roomy --- */
+  .view-row{ padding:11px 0; font-size:15px; }
+  .view-row .v{ max-width:60%; }
+  .view-photo-strip img{ height:100px; }
+  .star-picker{ font-size:34px; gap:8px; }
+  .suggest-hint{ font-size:13px; }
+
+  /* --- accessibility: shrink/heavy-motion respect --- */
+  @media(prefers-reduced-motion: reduce){
+    .modal{ animation:none; }
+    .card:active, .list-row:active, .tabbar button:active, .fab:active{ transform:none; }
+  }
 }
 </style>
 </head>
@@ -668,16 +831,21 @@ body.dark .badge-done{background:#213329;}
 <div class="toolbar">
   <div class="toolbar-group">
     <div class="tabs" id="viewTabs"></div>
-    <input class="search-input" id="searchInput" placeholder="Search name or region…">
+    <div class="search-row">
+      <input class="search-input" id="searchInput" placeholder="Search name or region…">
+      <button class="btn" id="settingsBtn" aria-label="Settings" title="Settings">Settings</button>
+    </div>
     <div class="pills" id="statusPills"></div>
     <div class="pills" id="sortPills"></div>
   </div>
   <div class="toolbar-group">
-    <button class="btn" id="selectBtn">Select</button>
-    <button class="btn" id="settingsBtn">Settings</button>
+    <button class="btn" id="selectBtn" aria-label="Select hikes">Select</button>
     <button class="btn btn-primary" id="addBtn">+ Add hike</button>
   </div>
 </div>
+<button class="fab" id="fabBtn" aria-label="Add hike">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+</button>
 
 <div class="content" id="content"></div>
 
@@ -692,13 +860,13 @@ body.dark .badge-done{background:#213329;}
   </div>
 </div>
 
-<div class="toast" id="toast">
+<div class="toast" id="toast" role="status" aria-live="polite">
   <span id="toastMsg"></span>
   <button id="toastUndo">Undo</button>
 </div>
 
 <!-- Add/Edit modal -->
-<div class="overlay" id="editOverlay">
+<div class="overlay" id="editOverlay" role="dialog" aria-modal="true" aria-labelledby="editTitle">
   <div class="modal">
     <h2 id="editTitle">Add a hike</h2>
     <p class="modal-hint">Only the name is required. For real trail stats, ask me in chat to look up the route.</p>
@@ -826,35 +994,25 @@ body.dark .badge-done{background:#213329;}
 </div>
 
 <!-- View (detail) modal -->
-<div class="overlay" id="viewOverlay">
+<div class="overlay" id="viewOverlay" role="dialog" aria-modal="true" aria-label="Hike details">
   <div class="modal" id="viewModalBody"></div>
 </div>
 
 <!-- Lightbox -->
-<div class="overlay" id="lightboxOverlay" onclick="closeLightbox()">
+<div class="overlay" id="lightboxOverlay" onclick="closeLightbox()" role="dialog" aria-modal="true" aria-label="Photo viewer">
   <img id="lightboxImg" style="max-width:92vw; max-height:92vh; border-radius:6px;">
 </div>
 
 <!-- Settings modal -->
-<div class="overlay" id="settingsOverlay">
+<div class="overlay" id="settingsOverlay" role="dialog" aria-modal="true" aria-label="Settings">
   <div class="modal" style="max-width:380px;">
     <h2>Settings</h2>
     <p class="modal-hint">Choose which main view(s) appear as tabs. Timeline always shows below.</p>
-    <div class="field">
-      <label><input type="checkbox" id="viewGrid" style="width:auto; margin-right:8px;">Grid view</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="viewList" style="width:auto; margin-right:8px;">List view</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="viewMap" style="width:auto; margin-right:8px;">Map links view</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="compactToggle" style="width:auto; margin-right:8px;">Compact grid</label>
-    </div>
-    <div class="field">
-      <label><input type="checkbox" id="darkToggle" style="width:auto; margin-right:8px;">Dark mode</label>
-    </div>
+    <div class="field"><label class="switchbox" for="viewGrid">Grid view<input type="checkbox" id="viewGrid"></label></div>
+    <div class="field"><label class="switchbox" for="viewList">List view<input type="checkbox" id="viewList"></label></div>
+    <div class="field"><label class="switchbox" for="viewMap">Map links view<input type="checkbox" id="viewMap"></label></div>
+    <div class="field"><label class="switchbox" for="compactToggle">Compact grid<input type="checkbox" id="compactToggle"></label></div>
+    <div class="field"><label class="switchbox" for="darkToggle">Dark mode<input type="checkbox" id="darkToggle"></label></div>
     <div class="field">
       <label for="unitSelect">Distance unit</label>
       <select id="unitSelect"><option value="km">Kilometers</option><option value="mi">Miles</option></select>
@@ -881,6 +1039,30 @@ body.dark .badge-done{background:#213329;}
     </div>
   </div>
 </div>
+
+<!-- Mobile bottom tab bar (shown ≤640px only) -->
+<nav class="tabbar" id="tabbar" aria-label="Main navigation">
+  <button data-nav="grid" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>
+    <span>Hikes</span>
+  </button>
+  <button data-nav="list">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="0.9" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="0.9" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="0.9" fill="currentColor" stroke="none"/></svg>
+    <span>List</span>
+  </button>
+  <button data-nav="map">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+    <span>Map</span>
+  </button>
+  <button data-nav="plan">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg>
+    <span>Plan</span>
+  </button>
+  <button data-nav="settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    <span>Settings</span>
+  </button>
+</nav>
 
 <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1044,7 +1226,43 @@ function renderTabs(){
   planBtn.textContent = 'Plan';
   planBtn.onclick = ()=>{ currentView = 'plan'; render(); renderTabs(); };
   tabsEl.appendChild(planBtn);
+  updateTabbar();
 }
+
+/* ---------- mobile bottom tab bar ---------- */
+const VIEW_FALLBACK = { grid:'list', list:'grid', map:'list' };
+function updateTabbar(){
+  document.querySelectorAll('#tabbar button').forEach(btn=>{
+    const nav = btn.dataset.nav;
+    let active = false;
+    if(nav === 'settings'){ active = document.getElementById('settingsOverlay').classList.contains('open'); }
+    else if(nav === 'map'){ active = currentView === 'map'; }
+    else { active = currentView === nav; }
+    btn.classList.toggle('active', active);
+  });
+}
+function gotoMobileView(nav){
+  if(nav === 'settings'){ openSettings(); updateTabbar(); return; }
+  if(nav === 'map' && !settings.views.map){
+    settings.views.map = true;
+    saveSettings().then(()=>{ loadData(); });
+    return;
+  }
+  if((nav === 'grid' && !settings.views.grid) || (nav === 'list' && !settings.views.list)){
+    const fallback = VIEW_FALLBACK[nav];
+    if(settings.views[fallback] || fallback === 'plan'){ currentView = fallback; }
+    else { currentView = 'plan'; }
+    render(); renderTabs();
+    return;
+  }
+  currentView = nav;
+  render();
+  renderTabs();
+}
+document.querySelectorAll('#tabbar button').forEach(btn=>{
+  btn.addEventListener('click', ()=> gotoMobileView(btn.dataset.nav));
+});
+document.getElementById('fabBtn').addEventListener('click', openAdd);
 
 function renderPills(){
   const statuses = [['all','All'],['Wishlist','Wishlist'],['Planned','Planned'],['Done','Done']];
@@ -1905,7 +2123,7 @@ document.getElementById('editOverlay').addEventListener('click', e=>{ if(e.targe
 document.getElementById('viewOverlay').addEventListener('click', e=>{ if(e.target.id==='viewOverlay') closeView(); });
 
 /* ---------- settings modal ---------- */
-document.getElementById('settingsBtn').onclick = ()=>{
+function openSettings(){
   document.getElementById('viewGrid').checked = !!settings.views.grid;
   document.getElementById('viewList').checked = !!settings.views.list;
   document.getElementById('viewMap').checked = !!settings.views.map;
@@ -1916,7 +2134,9 @@ document.getElementById('settingsBtn').onclick = ()=>{
   document.getElementById('homeLat').value = settings.homeLat ?? '';
   document.getElementById('homeLng').value = settings.homeLng ?? '';
   document.getElementById('settingsOverlay').classList.add('open');
-};
+  updateTabbar();
+}
+document.getElementById('settingsBtn').onclick = openSettings;
 document.getElementById('settingsOverlay').addEventListener('click', e=>{ if(e.target.id==='settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open'); });
 document.getElementById('exportBtn').onclick = ()=>{
   const blob = new Blob([JSON.stringify(hikes, null, 2)], { type:'application/json' });
@@ -1944,6 +2164,7 @@ document.getElementById('settingsDone').onclick = async ()=>{
   if(!enabled.includes(currentView)) currentView = enabled[0];
   renderTabs();
   render();
+  updateTabbar();
   document.getElementById('settingsOverlay').classList.remove('open');
 };
 
