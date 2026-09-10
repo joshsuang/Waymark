@@ -1676,6 +1676,7 @@ function openAdd(){
   currentConditions = [];
   currentWeather = null;
   currentLat = null; currentLng = null; currentStartLat = null; currentStartLng = null;
+  lastAddressSuggestion = null;
   document.getElementById('editTitle').textContent = 'Add a hike';
   document.getElementById('f-name').value = '';
   document.getElementById('f-region').value = '';
@@ -1720,6 +1721,7 @@ function openEdit(id){
   currentWeather = h.weather || null;
   currentLat = h.lat ?? null; currentLng = h.lng ?? null;
   currentStartLat = h.startLat ?? null; currentStartLng = h.startLng ?? null;
+  lastAddressSuggestion = null;
   document.getElementById('editTitle').textContent = h.name;
   document.getElementById('f-name').value = h.name || '';
   document.getElementById('f-region').value = h.region || '';
@@ -1772,20 +1774,34 @@ async function geocodeAddress(query){
   return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), province, displayName: r.display_name };
 }
 
+let lastAddressSuggestion = null;
+function applyAddressSuggestion(){
+  if(!lastAddressSuggestion) return;
+  document.getElementById('f-address').value = lastAddressSuggestion.displayName;
+  currentLat = lastAddressSuggestion.lat; currentLng = lastAddressSuggestion.lng;
+  if(!document.getElementById('f-region').value.trim() && lastAddressSuggestion.province){
+    document.getElementById('f-region').value = lastAddressSuggestion.province;
+  }
+  const hint = document.getElementById('geocodeHint');
+  hint.textContent = `✓ Location set: ${lastAddressSuggestion.displayName}`;
+}
+
 document.getElementById('geocodeBtn').onclick = async ()=>{
   const query = document.getElementById('f-address').value.trim();
   const hint = document.getElementById('geocodeHint');
   if(!query) return;
+  lastAddressSuggestion = null;
   hint.style.display = 'block'; hint.textContent = 'Looking up…'; hint.style.cursor = 'default';
   try{
     const result = await geocodeAddress(query);
-    if(!result){ hint.textContent = 'No match found — try a more specific address.'; return; }
-    currentLat = result.lat; currentLng = result.lng;
-    if(!document.getElementById('f-region').value.trim() && result.province){
-      document.getElementById('f-region').value = result.province;
-    }
-    hint.textContent = `Found: ${result.displayName}`;
-  }catch(e){ hint.textContent = 'Lookup failed — check your connection.'; }
+    if(!result){ hint.textContent = 'No match found — try a more specific address.'; hint.style.cursor = 'default'; return; }
+    lastAddressSuggestion = result;
+    hint.style.cursor = 'pointer';
+    hint.textContent = `Found: ${result.displayName} — click to use this location`;
+  }catch(e){ hint.textContent = 'Lookup failed — check your connection.'; hint.style.cursor = 'default'; }
+};
+document.getElementById('geocodeHint').onclick = ()=>{
+  if(lastAddressSuggestion) applyAddressSuggestion();
 };
 document.getElementById('startGeocodeBtn').onclick = async ()=>{
   const query = document.getElementById('f-start-address').value.trim();
