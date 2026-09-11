@@ -322,6 +322,35 @@ body.dark .leaflet-tile-pane{ filter: invert(92%) hue-rotate(180deg) brightness(
 .stat-block .num{font-family:var(--font-mono); font-size:20px; font-weight:700; color:var(--pine-deep);}
 .stat-block .lbl{font-size:11px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
 
+/* ---------- insights: heatmap, monthly bars, PRs ---------- */
+.insights{ background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:22px; }
+.insights h3{ font-family:var(--font-display); font-size:15px; color:var(--pine-deep); margin:0 0 12px; }
+.heatmap-scroll{ overflow-x:auto; padding-bottom:4px; }
+.heatmap{ display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,10px); gap:2.5px; width:max-content; }
+.heatmap-cell{ width:10px; height:10px; border-radius:2.5px; background:var(--bg); border:1px solid var(--line); }
+.heatmap-cell.l1{ background:color-mix(in srgb, var(--pine) 35%, var(--bg)); border-color:transparent; }
+.heatmap-cell.l2{ background:color-mix(in srgb, var(--pine) 65%, var(--bg)); border-color:transparent; }
+.heatmap-cell.l3{ background:var(--pine); border-color:transparent; }
+.monthly-bars{ display:flex; align-items:flex-end; gap:5px; height:64px; margin:14px 0 4px; }
+.mbar{ flex:1; background:var(--pine); opacity:0.85; border-radius:3px 3px 0 0; }
+.mbar.zero{ background:var(--bg); border:1px solid var(--line); opacity:1; }
+.month-labels{ display:flex; gap:5px; }
+.month-labels span{ flex:1; text-align:center; font-family:var(--font-mono); font-size:9px; color:var(--ink-soft); }
+.pr-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.pr-chip{ font-family:var(--font-mono); font-size:11px; background:var(--bg); border:1px solid var(--line); border-radius:14px; padding:5px 10px; color:var(--ink-soft); cursor:default; }
+.pr-chip.link{ cursor:pointer; }
+.pr-chip.link:hover{ border-color:var(--pine); }
+.pr-chip b{ color:var(--pine-deep); }
+.otd-banner{ display:flex; align-items:center; gap:10px; background:linear-gradient(120deg, #263D2F, #3C5A45); color:#fff; border-radius:10px; padding:12px 16px; margin-bottom:14px; }
+.otd-banner .otd-year{ font-family:var(--font-mono); font-size:11px; color:#D9B34E; text-transform:uppercase; letter-spacing:0.08em; }
+.otd-banner .otd-name{ font-family:var(--font-display); font-weight:600; font-size:16px; }
+.otd-banner button{ margin-left:auto; background:rgba(255,255,255,0.14); color:#fff; border:none; border-radius:7px; padding:7px 12px; font-size:12.5px; cursor:pointer; flex-shrink:0; }
+.dropzone-overlay{ position:fixed; inset:0; z-index:2000; background:rgba(38,61,47,0.88); display:none; align-items:center; justify-content:center; pointer-events:none; }
+.dropzone-overlay.open{ display:flex; }
+.dropzone-overlay .dz-box{ border:3px dashed #A9791A; border-radius:16px; padding:40px 60px; color:#fff; font-family:var(--font-display); font-size:22px; text-align:center; }
+.view-route-map{ height:200px; border-radius:10px; border:1px solid var(--line); margin-top:4px; margin-bottom:6px; }
+.view-spark-hint{ font-size:10.5px; color:var(--ink-soft); margin:2px 0 8px; }
+
 /* ---------- select mode ---------- */
 .card.selecting, .list-row.selecting{outline:2px solid var(--pine); outline-offset:-2px;}
 .select-check{
@@ -913,6 +942,15 @@ body.dark .badge-done{background:#213329;}
     .card:active, .list-row:active, .tabbar button:active, .fab:active{ transform:none; }
   }
 }
+
+/* --- new feature sizing on mobile --- */
+@media(max-width:640px){
+  .heatmap-cell{ width:9px; height:9px; }
+  .monthly-bars{ height:54px; }
+  .view-route-map{ height:180px; }
+  .otd-banner{ flex-wrap:wrap; }
+  .otd-banner button{ width:100%; min-height:40px; }
+}
 </style>
 </head>
 
@@ -1077,6 +1115,7 @@ body.dark .badge-done{background:#213329;}
         <input type="file" accept=".gpx" id="f-gpx">
         <svg id="gpxPreview" class="sparkline" width="100%" height="40" style="display:none;"></svg>
         <div class="suggest-hint" id="gpxHint" style="display:none;"></div>
+        <div class="suggest-hint" id="gpxDistanceHint" style="display:none; cursor:pointer;"></div>
       </div>
       <div class="field" id="ratingField" style="display:none;">
         <label>Rating</label>
@@ -1124,6 +1163,18 @@ body.dark .badge-done{background:#213329;}
     <div class="field"><label class="switchbox" for="viewMap">Map links view<input type="checkbox" id="viewMap"></label></div>
     <div class="field"><label class="switchbox" for="compactToggle">Compact grid<input type="checkbox" id="compactToggle"></label></div>
     <div class="field"><label class="switchbox" for="darkToggle">Dark mode<input type="checkbox" id="darkToggle"></label></div>
+    <div class="field" id="syncStatusRow" style="display:none;">
+      <label>Sync status</label>
+      <div id="syncStatusText" style="font-family:var(--font-mono); font-size:12px; color:var(--ink-soft); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px;"></div>
+    </div>
+    <div class="field">
+      <label>Backup &amp; export</label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn" id="exportBtn" type="button" style="flex:1; min-width:120px;">Export JSON</button>
+        <button class="btn" id="exportGpxBtn" type="button" style="flex:1; min-width:120px;">Export GPX</button>
+      </div>
+      <div class="suggest-hint" style="cursor:default; margin-top:6px;">Full backup: hikes + settings + plan. GPX files include routes &amp; elevation where available.</div>
+    </div>
     <div class="field">
       <label for="unitSelect">Distance unit</label>
       <select id="unitSelect"><option value="km">Kilometers</option><option value="mi">Miles</option></select>
@@ -1189,6 +1240,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    pending copy matters. Note: last-write-wins, so a pending local
    snapshot replaces server rows for its target when it flushes. */
 const OFFLINE_QUEUE_KEY = 'waymark_offline_queue_v1';
+let lastSyncedAt = parseInt(localStorage.getItem('waymark_last_synced') || '0', 10) || null;
 let offlineQueue = (function(){
   try{ const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)); return Array.isArray(q) ? q : []; }
   catch(e){ return []; }
@@ -1252,6 +1304,8 @@ async function flushOfflineQueue(){
         offlineQueue.shift();
         persistQueue();
         synced++;
+        lastSyncedAt = Date.now();
+        try{ localStorage.setItem('waymark_last_synced', String(lastSyncedAt)); }catch(e){}
       }catch(err){
         if(isOfflineError(err)) break; // still offline — retry on the next trigger
         console.error('queued write failed permanently, dropping', op.target, err);
@@ -1262,7 +1316,10 @@ async function flushOfflineQueue(){
   } finally {
     _flushingQueue = false;
     updateOfflineBadge();
-    if(synced) showToast(`Synced ${synced} offline change${synced === 1 ? '' : 's'}`);
+    if(synced){
+      showToast(`Synced ${synced} offline change${synced === 1 ? '' : 's'}`);
+      updateSyncStatus();
+    }
   }
   return synced;
 }
@@ -1610,7 +1667,7 @@ function render(){
   }
 
   const list = getFiltered();
-  const statsHtml = renderStats();
+  const statsHtml = renderStats() + renderOnThisDayHtml() + renderInsightsHtml();
 
   if(list.length === 0){
     content.innerHTML = statsHtml + `<div class="empty"><h3>Nothing here yet</h3><p>Add a hike or adjust your filters.</p></div>`;
@@ -1785,6 +1842,134 @@ function clearRouteFromMap(){
     _pinsMapInstance.removeLayer(GPX_ROUTE.cap);
   }
   GPX_ROUTE = null;
+}
+
+/* ---------- insights: heatmap, monthly bars, PRs, on-this-day ---------- */
+const HEAT_KEY = d => (d.dateStart || d.dateEnd || '').slice(0,10);
+function renderInsightsHtml(){
+  const done = hikes.filter(h => h.status === 'Done');
+  const byDay = {};
+  done.forEach(h => { const k = HEAT_KEY(h); if(k) byDay[k] = (byDay[k] || 0) + 1; });
+  const days = Object.keys(byDay);
+  if(!done.length) return '';
+
+  // heatmap: last 12 months, GitHub-style
+  const today = new Date();
+  const start = new Date(today); start.setDate(start.getDate() - 364);
+  start.setDate(start.getDate() - start.getDay()); // align to Sunday for clean 7-row columns
+  const cells = [];
+  let maxCount = 1;
+  for(const k of days) maxCount = Math.max(maxCount, byDay[k]);
+  const level = n => !n ? '' : n === 1 ? 'l1' : n <= Math.ceil(maxCount/2) ? 'l2' : 'l3';
+  for(let d = new Date(start); d <= today; d.setDate(d.getDate() + 1)){
+    const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    cells.push(`<div class="heatmap-cell ${level(byDay[iso] || 0)}" title="${iso}${byDay[iso] ? ' · ' + byDay[iso] + ' hike' + (byDay[iso] > 1 ? 's' : '') : ''}"></div>`);
+  }
+
+  // monthly km for the current year
+  const months = Array(12).fill(0);
+  done.forEach(h => {
+    const k = HEAT_KEY(h);
+    if(k && k.slice(0,4) === String(today.getFullYear())) months[parseInt(k.slice(5,7), 10) - 1] += (h.distance || 0);
+  });
+  const maxKm = Math.max(...months, 1);
+  const bars = months.map((km,i) => `<div class="mbar${km ? '' : ' zero'}" style="height:${Math.max(km ? 6 : 3, Math.round((km/maxKm)*64))}px" title="${km.toFixed(1)} km"></div>`).join('');
+  const mlabels = ['J','F','M','A','M','J','J','A','S','O','N','D'].map(m => `<span>${m}</span>`).join('');
+
+  // personal records (links open the hike)
+  const withDist = done.filter(h => h.distance);
+  const withEle = done.filter(h => h.elevation);
+  const prs = [];
+  const longest = withDist.slice().sort((a,b) => b.distance - a.distance)[0];
+  const highest = withEle.slice().sort((a,b) => b.elevation - a.elevation)[0];
+  let biggest = null, biggestKm = 0;
+  for(const k of days){
+    const km = done.filter(h => HEAT_KEY(h) === k).reduce((s,h) => s + (h.distance || 0), 0);
+    if(km > biggestKm){ biggestKm = km; biggest = { k, km }; }
+  }
+  if(longest) prs.push(`<button class="pr-chip link" onclick="openView('${longest.id}')">Longest <b>${fmtDistance(longest.distance)}</b> · ${esc(longest.name)}</button>`);
+  if(highest) prs.push(`<button class="pr-chip link" onclick="openView('${highest.id}')">Biggest climb <b>${fmtElevation(highest.elevation)}</b> · ${esc(highest.name)}</button>`);
+  if(biggest && biggestKm > 0) prs.push(`<span class="pr-chip">Biggest day <b>${biggestKm.toFixed(1)} km</b> · ${biggest.k}</span>`);
+  prs.push(`<span class="pr-chip">Hikes this year <b>${done.filter(h => (HEAT_KEY(h) || '').slice(0,4) === String(today.getFullYear())).length}</b></span>`);
+
+  return `
+    <div class="insights">
+      <h3>Your year on the trail</h3>
+      <div class="heatmap-scroll"><div class="heatmap">${cells.join('')}</div></div>
+      <div class="monthly-bars">${bars}</div>
+      <div class="month-labels">${mlabels}</div>
+      <div class="pr-row">${prs.join('')}</div>
+    </div>
+  `;
+}
+function renderOnThisDayHtml(){
+  const today = new Date();
+  const mmdd = `${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const candidates = hikes.filter(h => {
+    const k = HEAT_KEY(h);
+    return k && k.slice(5) === mmdd && k.slice(0,4) !== String(today.getFullYear());
+  });
+  if(!candidates.length) return '';
+  const h = candidates.sort((a,b) => (b.dateStart || b.dateEnd || '').localeCompare(a.dateStart || a.dateEnd || ''))[0];
+  const year = (h.dateStart || h.dateEnd || '').slice(0,4);
+  return `
+    <div class="otd-banner" role="status">
+      <span>🌿</span>
+      <div>
+        <div class="otd-year">On this day · ${year}</div>
+        <div class="otd-name">${esc(h.name)}</div>
+      </div>
+      <button onclick="openView('${h.id}')">Revisit</button>
+    </div>
+  `;
+}
+
+/* ---------- sync status (settings) ---------- */
+function updateSyncStatus(){
+  const row = document.getElementById('syncStatusRow');
+  const el = document.getElementById('syncStatusText');
+  if(!row || !el) return;
+  row.style.display = 'block';
+  if(offlineQueue.length){
+    el.textContent = `⚠ ${offlineQueue.length} change${offlineQueue.length === 1 ? '' : 's'} waiting to sync${navigator.onLine ? '' : ' · offline'} — saved on this device`;
+  } else if(lastSyncedAt){
+    const t = new Date(lastSyncedAt);
+    const hh = String(t.getHours()).padStart(2,'0'), mm = String(t.getMinutes()).padStart(2,'0');
+    const when = t.toDateString() === new Date().toDateString() ? `${hh}:${mm}` : `${t.toLocaleDateString()} ${hh}:${mm}`;
+    el.textContent = `✓ All synced · last ${when}`;
+  } else {
+    el.textContent = '✓ All synced';
+  }
+}
+function exportBackupGpx(){
+  const withRoutes = hikes.filter(h => { const g = gpxData(h.gpxElevations); return g && g.route.length > 1; });
+  let count = 0;
+  const stamp = new Date().toISOString().slice(0,10);
+  withRoutes.forEach(h => {
+    const g = gpxData(h.gpxElevations);
+    const pts = g.route.map(([lat,lng],i) => {
+      const ele = g.ele.length ? `<ele>${(g.ele[Math.min(g.ele.length-1, Math.round(i * (g.ele.length-1) / Math.max(1, g.route.length-1)))]).toFixed(1)}</ele>` : '';
+      return `      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}">${ele}</trkpt>`;
+    }).join('\n');
+    const name = h.name.replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').toLowerCase() || 'hike';
+    const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Waymark" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>${esc(h.name)}</name>
+    <trkseg>
+${pts}
+    </trkseg>
+  </trk>
+</gpx>`;
+    const blob = new Blob([gpx], { type:'application/gpx+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${stamp}-${name}.gpx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    count++;
+  });
+  showToast(count ? `Exported ${count} GPX file${count === 1 ? '' : 's'}` : 'No hikes with GPX routes to export');
 }
 
 /* ---------- plan tab ---------- */
@@ -2133,7 +2318,8 @@ function openView(id){
       </div>
     </div>
     ${h.photos && h.photos.length ? `<div class="view-photo-strip">${h.photos.map(p=>`<img src="${p}" onclick="openLightbox(this.src)">`).join('')}</div>` : ''}
-    ${(() => { const g = gpxData(h.gpxElevations); return g && g.ele.length ? sparklineSvg(g.ele) : ''; })()}
+    ${(() => { const g = gpxData(h.gpxElevations); return g && g.ele.length ? sparklineSvg(g.ele) + (g.route.length > 1 ? '<p class="view-spark-hint">Tap the profile to see that point on the route ↓</p>' : '') : ''; })()}
+    ${(() => { const g = gpxData(h.gpxElevations); return g && g.route.length > 1 ? '<div class="view-route-map" id="viewRouteMap"></div>' : ''; })()}
     ${group('Overview', overview)}
     ${group('Trip details', details)}
     ${group('Links & rating', links)}
@@ -2141,9 +2327,46 @@ function openView(id){
   `;
   document.getElementById('editPencilBtn').onclick = ()=>{ closeView(); openEdit(h.id); };
   document.getElementById('sharePngBtn').onclick = ()=> shareHikeAsPng(h);
+  /* Interactive elevation profile: tap the sparkline to mark that point on the route map */
+  currentViewHike = h;
+  const spark = document.querySelector('#viewModalBody svg.sparkline');
+  const vg = gpxData(h.gpxElevations);
+  if(spark && vg && vg.route.length > 1){
+    spark.style.cursor = 'crosshair';
+    spark.addEventListener('click', e=>{
+      const rect = spark.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+      markRouteOnViewMap(frac);
+    });
+  }
   document.getElementById('viewOverlay').classList.add('open');
 }
-function closeView(){ document.getElementById('viewOverlay').classList.remove('open'); }
+function closeView(){ currentViewHike = null; document.getElementById('viewOverlay').classList.remove('open'); }
+let currentViewHike = null;
+let _viewRouteMarker = null;
+let _viewRouteMap = null;
+/* Mark the point at `frac` (0..1) along the route on the detail-sheet mini map. */
+function markRouteOnViewMap(frac){
+  const h = currentViewHike;
+  if(!h) return;
+  const g = gpxData(h.gpxElevations);
+  if(!g || g.route.length < 2) return;
+  const mapEl = document.getElementById('viewRouteMap');
+  if(!mapEl) return;
+  if(!_viewRouteMap){
+    if(typeof L === 'undefined') return;
+    _viewRouteMap = L.map(mapEl, { scrollWheelZoom:false, attributionControl:false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18 }).addTo(_viewRouteMap);
+    L.polyline(g.route, { color:'#A9791A', weight:3.5, opacity:0.95 }).addTo(_viewRouteMap);
+    _viewRouteMap.fitBounds(L.latLngBounds(g.route).pad(0.15));
+    setTimeout(()=>{ if(_viewRouteMap) _viewRouteMap.invalidateSize(); }, 60);
+  }
+  const idx = Math.min(g.route.length - 1, Math.round(frac * (g.route.length - 1)));
+  const ll = g.route[idx];
+  if(_viewRouteMarker){ _viewRouteMarker.setLatLng(ll); }
+  else { _viewRouteMarker = L.circleMarker(ll, { radius:6, color:'#fff', weight:2, fillColor:'#263D2F', fillOpacity:1 }).addTo(_viewRouteMap); }
+  _viewRouteMap.panTo(ll, { animate:true, duration:0.4 });
+}
 
 function openLightbox(src){
   document.getElementById('lightboxImg').src = src;
@@ -2158,20 +2381,36 @@ async function shareHikeAsPng(h){
   const card = document.createElement('div');
   card.style.cssText = 'width:600px; padding:40px; background:linear-gradient(160deg,#1B2620,#263D2F); font-family:Work Sans, sans-serif; color:#fff; position:fixed; left:-9999px; top:0;';
   const dateStr = h.dateStart ? formatDate(h.dateStart) : '';
+  const g = gpxData(h.gpxElevations);
+  const routeLen = routeDistanceKm(g ? g.route : null);
   card.innerHTML = `
     <div style="font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:#A9791A; margin-bottom:10px;">Waymark</div>
     <div style="font-family:Fraunces, serif; font-weight:600; font-size:32px; margin-bottom:4px;">${esc(h.name)}</div>
-    <div style="font-size:14px; color:#9BAA98; margin-bottom:28px;">${esc(h.region||'')}${dateStr ? ' · '+dateStr : ''}</div>
+    <div style="font-size:14px; color:#9BAA98; margin-bottom:20px;">${esc(h.region||'')}${dateStr ? ' · '+dateStr : ''}</div>
+    ${(h.photos && h.photos[0]) || (g && g.route.length > 1) ? `<div id="shareMapSlot" style="height:210px; border-radius:10px; overflow:hidden; margin-bottom:24px; display:flex; align-items:center; justify-content:center; background:#1E2B22;">
+      ${(h.photos && h.photos[0]) ? `<img src="${h.photos[0]}" style="width:100%; height:100%; object-fit:cover;" crossorigin="anonymous">` : '<span style="color:#56604F; font-size:12px;">map preview</span>'}
+    </div>` : ''}
     <div style="display:flex; gap:32px;">
-      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${fmtDistance(h.distance)}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Distance</div></div>
-      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${fmtElevation(h.elevation)}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Elevation gain</div></div>
+      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${fmtDistance(h.distance ?? (routeLen ? Math.round(routeLen*10)/10 : null))}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Distance</div></div>
+      <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${fmtElevation(h.elevation ?? (g && g.gain != null ? g.gain : null))}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Elevation gain</div></div>
       <div><div style="font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700;">${h.difficulty||'Easy'}</div><div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#9BAA98; margin-top:2px;">Difficulty</div></div>
     </div>
     ${h.status==='Done' && h.rating ? `<div style="margin-top:24px; color:#D9B34E; font-size:18px; letter-spacing:2px;">${'★'.repeat(h.rating)}${'☆'.repeat(5-h.rating)}</div>` : ''}
   `;
   document.body.appendChild(card);
+  /* Route-only hikes: render the real map into the card before capturing */
+  if(!(h.photos && h.photos[0]) && g && g.route.length > 1 && typeof L !== 'undefined'){
+    try{
+      const slot = card.querySelector('#shareMapSlot');
+      const rmap = L.map(slot, { attributionControl:false, zoomControl:false, dragging:false, scrollWheelZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, touchZoom:false });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:18 }).addTo(rmap);
+      L.polyline(g.route, { color:'#D9B34E', weight:4, opacity:0.95 }).addTo(rmap);
+      rmap.fitBounds(L.latLngBounds(g.route).pad(0.2));
+      await new Promise(r => setTimeout(r, 900));
+    }catch(e){ console.warn('share map render skipped', e); }
+  }
   try{
-    const canvas = await html2canvas(card, { backgroundColor: null, scale: 2 });
+    const canvas = await html2canvas(card, { backgroundColor: null, scale: 2, useCORS: true });
     const link = document.createElement('a');
     link.download = h.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase() + '-waymark.png';
     link.href = canvas.toDataURL('image/png');
@@ -2208,6 +2447,21 @@ function downsamplePairs(pairs, target){
   for(let i=0;i<target;i++) out.push(pairs[Math.floor(i*step)]);
   return out;
 }
+/* Great-circle distance between two [lat,lng] points, in km. */
+function haversineKm(a, b){
+  const R = 6371;
+  const dLat = (b[0]-a[0]) * Math.PI/180, dLon = (b[1]-a[1]) * Math.PI/180;
+  const la1 = a[0] * Math.PI/180, la2 = b[0] * Math.PI/180;
+  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+/* Route length in km from a [[lat,lng],...] polyline (3D not needed — recorded tracks already sum 2D). */
+function routeDistanceKm(route){
+  if(!Array.isArray(route) || route.length < 2) return null;
+  let d = 0;
+  for(let i=1;i<route.length;i++) d += haversineKm(route[i-1], route[i]);
+  return d;
+}
 /* Total gain from a track: sum positive elevation deltas.
    A 10 m hysteresis swallows GPS noise/barometer jitter so rolling terrain
    and signal wobble don't inflate the number. Returns null when no elevations. */
@@ -2242,20 +2496,20 @@ function parseGpx(text){
   if(pts.length === 0){
     // legacy: bare <ele> list without coordinates
     const eles = Array.from(doc.getElementsByTagName('ele')).map(n=>parseFloat(n.textContent)).filter(n=>!isNaN(n));
-    return eles.length ? { ele: downsampleArr(eles, 40), route: [], gain: totalElevationGain(eles) } : null;
+    return eles.length ? { ele: downsampleArr(eles, 40), route: [], gain: totalElevationGain(eles), dist: null } : null;
   }
   const route = downsamplePairs(pts.map(p=>[p.lat, p.lon]), 800);
   const eles = pts.map(p=>p.ele).filter(e=>e!=null);
-  return { ele: eles.length ? downsampleArr(eles, 40) : [], route, gain: totalElevationGain(eles) };
+  return { ele: eles.length ? downsampleArr(eles, 40) : [], route, gain: totalElevationGain(eles), dist: routeDistanceKm(route) };
 }
 /* gpxElevations may hold a legacy elevation array or the newer {ele, route} object */
 function gpxData(v){
   if(!v) return null;
-  if(Array.isArray(v)) return { ele: v, route: [], gain: totalElevationGain(v) };
+  if(Array.isArray(v)) return { ele: v, route: [], gain: totalElevationGain(v), dist: null };
   if(typeof v === 'object'){
     const ele = Array.isArray(v.ele) ? v.ele : [];
     const route = Array.isArray(v.route) ? v.route.filter(p => Array.isArray(p) && p.length === 2 && !isNaN(p[0]) && !isNaN(p[1])) : [];
-    if(ele.length || route.length) return { ele, route, gain: (typeof v.gain === 'number' && !isNaN(v.gain)) ? v.gain : totalElevationGain(ele) };
+    if(ele.length || route.length) return { ele, route, gain: (typeof v.gain === 'number' && !isNaN(v.gain)) ? v.gain : totalElevationGain(ele), dist: (typeof v.dist === 'number' && !isNaN(v.dist)) ? v.dist : routeDistanceKm(route) };
   }
   return null;
 }
@@ -2281,9 +2535,11 @@ document.getElementById('f-gpx').addEventListener('change', e=>{
           bits.push(`${currentGpxSummary.gain} m of climbing`);
         }
         if(maybeAutoFillElevation(currentGpxSummary)) bits.push('elevation auto-filled');
+        if(maybeAutoFillDistance(currentGpxSummary)) bits.push('distance auto-filled');
         hint.style.display = 'block';
         hint.textContent = 'Added: ' + bits.join(' + ');
       }
+      updateGpxDistanceHint(currentGpxSummary);
       /* Move the hike's location to the GPX start point */
       if(points.route.length){
         const [slat, slng] = points.route[0];
@@ -2302,7 +2558,7 @@ function computeGpxSummary(v){
   const g = gpxData(v);
   if(!g || (!g.ele.length && !g.route.length)) return null;
   const start = g.route.length ? g.route[0] : null;
-  return { gain: totalElevationGain(g.ele), hasElev: g.ele.length > 0, hasRoute: g.route.length > 0, start };
+  return { gain: totalElevationGain(g.ele), dist: routeDistanceKm(g.route), hasElev: g.ele.length > 0, hasRoute: g.route.length > 0, start };
 }
 let currentGpxSummary = null;
 /* Elevation-gain auto-fill: only when the user hasn't typed a value, so manual entries always win. */
@@ -2313,6 +2569,34 @@ function maybeAutoFillElevation(summary){
   el.value = summary.gain;
   el.dispatchEvent(new Event('input', { bubbles: true }));
   return true;
+}
+/* Distance auto-fill from GPX geometry: only fills an empty field; round to 1 decimal. */
+function maybeAutoFillDistance(summary){
+  if(!summary || summary.dist == null || !(summary.dist > 0.05)) return false;
+  const el = document.getElementById('f-distance');
+  if(!el || el.value.trim() !== '') return false;
+  el.value = (Math.round(summary.dist * 10) / 10).toFixed(1);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}
+/* Show "distance looks small — click to use route length" hint when values disagree. */
+function updateGpxDistanceHint(summary){
+  const hint = document.getElementById('gpxDistanceHint');
+  if(!hint) return;
+  if(!summary || summary.dist == null || !(summary.dist > 0.05)){ hint.style.display = 'none'; return; }
+  const typed = parseFloat(document.getElementById('f-distance').value) || 0;
+  const suggested = Math.round(summary.dist * 10) / 10;
+  if(typed > 0 && Math.abs(typed - suggested) / suggested > 0.1){
+    hint.textContent = `Route measures ${suggested.toFixed(1)} km — click to use`;
+    hint.style.display = 'block';
+    hint.onclick = ()=>{
+      document.getElementById('f-distance').value = suggested.toFixed(1);
+      document.getElementById('f-distance').dispatchEvent(new Event('input', { bubbles: true }));
+      hint.style.display = 'none';
+    };
+  } else {
+    hint.style.display = 'none';
+  }
 }
 async function updateGpxLocationFields(lat, lng){
   const hint = document.getElementById('gpxHint');
@@ -2351,6 +2635,50 @@ async function updateGpxLocationFields(lat, lng){
     }
   }
 }
+
+/* ---------- drag & drop GPX import anywhere ---------- */
+(function(){
+  let dragDepth = 0;
+  let dzOverlay = null;
+  function showDropzone(show){
+    if(show && !dzOverlay){
+      dzOverlay = document.createElement('div');
+      dzOverlay.className = 'dropzone-overlay open';
+      dzOverlay.innerHTML = '<div class="dz-box">Drop your GPX file<br><small style="font-size:13px; font-family:var(--font-body); color:#9BAA98;">to start a new hike</small></div>';
+      document.body.appendChild(dzOverlay);
+    } else if(!show && dzOverlay){
+      dzOverlay.remove(); dzOverlay = null;
+    }
+  }
+  function handleGpxFile(file){
+    const name = (file.name || 'Dropped hike').replace(/\.gpx$/i, '').replace(/[-_]+/g, ' ').trim();
+    openAdd();
+    document.getElementById('f-name').value = name || 'Dropped hike';
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.getElementById('f-gpx');
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    if(document.getElementById('moreDetailsSection').style.display === 'none'){
+      document.getElementById('moreDetailsToggle').click();
+    }
+    showToast('GPX loaded — check the details and save');
+  }
+  window.addEventListener('dragenter', e=>{
+    if(![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault(); dragDepth++; showDropzone(true);
+  });
+  window.addEventListener('dragover', e=>{ e.preventDefault(); });
+  window.addEventListener('dragleave', e=>{
+    e.preventDefault(); dragDepth = Math.max(0, dragDepth - 1);
+    if(dragDepth === 0) showDropzone(false);
+  });
+  window.addEventListener('drop', e=>{
+    e.preventDefault(); dragDepth = 0; showDropzone(false);
+    const file = [...(e.dataTransfer?.files || [])].find(f => /\.gpx$/i.test(f.name));
+    if(file) handleGpxFile(file);
+  });
+})();
 
 /* ---------- difficulty suggestion ---------- */
 function suggestDifficulty(distance, elevation){
@@ -2684,6 +3012,7 @@ document.getElementById('viewOverlay').addEventListener('click', e=>{ if(e.targe
 /* ---------- settings modal ---------- */
 function openSettings(){
   closeMobileMap();
+  updateSyncStatus();
   document.getElementById('viewGrid').checked = !!settings.views.grid;
   document.getElementById('viewList').checked = !!settings.views.list;
   document.getElementById('viewMap').checked = !!settings.views.map;
@@ -2699,13 +3028,21 @@ function openSettings(){
 document.getElementById('settingsBtn').onclick = openSettings;
 document.getElementById('settingsOverlay').addEventListener('click', e=>{ if(e.target.id==='settingsOverlay') document.getElementById('settingsOverlay').classList.remove('open'); });
 document.getElementById('exportBtn').onclick = ()=>{
-  const blob = new Blob([JSON.stringify(hikes, null, 2)], { type:'application/json' });
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    hikes,
+    settings,
+    plan: planData
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type:'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'hikes-export.json';
+  a.href = url; a.download = `waymark-backup-${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
+  showToast('Backup downloaded — hikes, settings and plan');
 };
+document.getElementById('exportGpxBtn').onclick = exportBackupGpx;
 document.getElementById('settingsDone').onclick = async ()=>{
   const g = document.getElementById('viewGrid').checked;
   const l = document.getElementById('viewList').checked;

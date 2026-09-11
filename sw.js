@@ -6,7 +6,7 @@
    - fonts/CDN libraries: stale-while-revalidate
    - all other GETs: network-first fallback to cache
    Mutating requests (POST/PATCH/...) always go straight to the network. */
-const VERSION = 'waymark-v1';
+const VERSION = 'waymark-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const DATA_CACHE = `${VERSION}-data`;
 const TILE_CACHE = `${VERSION}-tiles`;
@@ -17,6 +17,14 @@ const SHELL_ASSETS = [
   'apple-touch-icon.png',
   'icon-192.png',
   'icon-512.png',
+  /* splash screens: iOS picks the right size at launch; precaching all 23 (~300 KB total)
+     makes home-screen cold starts show the branded splash even offline */
+  'splash-640x1136.png','splash-750x1334.png','splash-1334x750.png','splash-1242x2208.png',
+  'splash-2208x1242.png','splash-1125x2436.png','splash-2436x1125.png','splash-828x1792.png',
+  'splash-1792x828.png','splash-1242x2688.png','splash-2688x1242.png','splash-1170x2532.png',
+  'splash-2532x1170.png','splash-1284x2778.png','splash-2778x1284.png','splash-1179x2556.png',
+  'splash-2556x1179.png','splash-1290x2796.png','splash-2796x1290.png','splash-1206x2622.png',
+  'splash-2622x1206.png','splash-1320x2868.png','splash-2868x1320.png',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
   'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js',
